@@ -77,6 +77,41 @@ navegador en `http://127.0.0.1:5050` con:
 Puedes dejar el panel abierto y solo darle "↻ Actualizar" después de
 correr una nueva búsqueda.
 
+## Verla desde tu celular (GitHub Pages)
+
+Puedes publicar una versión de solo lectura en internet, gratis, usando
+GitHub Pages. No corre nada en la nube — es una "foto" de tus datos que tú
+actualizas cuando quieras desde tu PC.
+
+**Primera vez (configurar):**
+
+1. Crea un repositorio en GitHub (puede ser público; los datos son de
+   publicaciones que ya son públicas en Inmuebles24). Si quieres, dime el
+   nombre que le quieres poner y te ayudo con los comandos para
+   conectarlo.
+2. En GitHub: **Settings → Pages → Source**, selecciona la rama `main` y
+   la carpeta `/docs`, y guarda. GitHub te da una URL tipo
+   `https://tu-usuario.github.io/tu-repo/`.
+
+**Cada vez que quieras actualizar lo que ves en tu celular:**
+
+```bash
+python -m src.main        # 1. buscar (opcional si ya buscaste hace poco)
+python -m src.publish     # 2. genera docs/index.html, listings.json y stats.json
+git add docs/
+git commit -m "Actualiza publicaciones"
+git push
+```
+
+Unos segundos después de hacer `push`, la página en GitHub Pages queda
+actualizada y la puedes abrir desde el navegador de tu celular con esa
+misma URL.
+
+**Nota de privacidad:** en el plan gratis de GitHub, la página de Pages es
+pública — cualquiera con el link la puede ver (aunque no aparece en
+buscadores ni es fácil de adivinar). Ya que son datos de casas en venta
+públicas, no debería ser un problema, pero tenlo presente.
+
 ## Cómo decide si algo es "buena oportunidad"
 
 Cada publicación se compara contra el promedio de todas las casas que ya
@@ -98,13 +133,17 @@ representativa será la comparación.
 src/
   main.py               busca y guarda (una sola corrida, manual)
   dashboard.py           panel local de análisis (Flask, http://127.0.0.1:5050)
+  publish.py              genera la versión estática para GitHub Pages (docs/)
+  export_data.py          lógica compartida de datos (usada por dashboard y publish)
   templates/
-    dashboard.html         interfaz del panel
+    dashboard.html         interfaz del panel local
+    dashboard_static.html   interfaz de la versión publicada en GitHub Pages
   config.py              configuración (lee .env)
   storage.py              base de datos SQLite (data/listings.db)
   analysis.py             cálculo de estadísticas y comparación
   scrapers/
     inmuebles24.py         scraper de Inmuebles24
+docs/                     versión estática generada (esto es lo que ve GitHub Pages)
 buscar_casas.bat         doble clic para buscar (desde el Explorador)
 abrir_panel.bat          doble clic para abrir el panel (desde el Explorador)
 ```
