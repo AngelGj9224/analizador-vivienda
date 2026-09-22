@@ -5,6 +5,7 @@ estática para GitHub Pages (src/publish.py), para no duplicar la lógica.
 """
 
 from .analysis import compare_listing, compute_market_stats
+from . import mortgage
 from .storage import Storage
 
 
@@ -36,6 +37,7 @@ def listings_payload(storage: Storage) -> list:
                 "vs_avg_price_pct": comparison["vs_avg_price_pct"],
                 "vs_avg_ppm2_pct": comparison["vs_avg_ppm2_pct"],
                 "verdict": comparison["verdict"],
+                "mortgage": mortgage.estimate(l.price),
             }
         )
     return data
@@ -54,4 +56,11 @@ def stats_payload(storage: Storage) -> dict:
         "max_price": stats.max_price,
         "avg_price_per_m2": stats.avg_price_per_m2,
         "last_update": max(last_seen_values) if last_seen_values else None,
+        "mortgage_assumptions": {
+            "down_payment": mortgage.DOWN_PAYMENT,
+            "annual_rate": mortgage.ANNUAL_RATE,
+            "salary": mortgage.SALARY,
+            "term_years": list(mortgage.TERM_YEARS),
+            "max_credit_tradicional": mortgage.MAX_CREDIT_TRADICIONAL,
+        },
     }

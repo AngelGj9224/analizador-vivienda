@@ -112,6 +112,29 @@ pública — cualquiera con el link la puede ver (aunque no aparece en
 buscadores ni es fácil de adivinar). Ya que son datos de casas en venta
 públicas, no debería ser un problema, pero tenlo presente.
 
+## Mensualidad estimada (crédito Infonavit)
+
+Cada publicación muestra una columna con el pago mensual aproximado si la
+compraras con crédito Infonavit, a 20 y a 25 años, con estos supuestos:
+
+- **Enganche:** $1,000,000 MXN
+- **Tasa:** 10.45% anual fija — es la tasa más alta del rango 2026
+  (3.69%–10.45%), que aplica a salarios mensuales por arriba de 6.6 UMA
+  (~$23,537); con un sueldo de $42,000 te toca ese tramo.
+- **Fórmula:** amortización estándar (pago fijo mensual), sin seguros ni
+  comisiones.
+
+Si el crédito necesario (precio − enganche) supera el tope 2026 del
+crédito tradicional Infonavit (~$2,935,000), se muestra una advertencia —
+en ese caso normalmente se necesitaría complementar con Cofinavit u otro
+crédito. Si la mensualidad de algún plazo supera tu sueldo de $42,000, se
+muestra en rojo.
+
+Estos supuestos (enganche, tasa, sueldo, plazos) están en
+`src/mortgage.py` — cámbialos ahí si cambian tus números. Es un estimado
+para comparar entre casas, no un cálculo oficial: la tasa real depende de
+tu precalificación en Mi Cuenta Infonavit.
+
 ## Cómo decide si algo es "buena oportunidad"
 
 Cada publicación se compara contra el promedio de todas las casas que ya
@@ -135,6 +158,7 @@ src/
   dashboard.py           panel local de análisis (Flask, http://127.0.0.1:5050)
   publish.py              genera la versión estática para GitHub Pages (docs/)
   export_data.py          lógica compartida de datos (usada por dashboard y publish)
+  mortgage.py              cálculo de mensualidad estimada (crédito Infonavit)
   templates/
     dashboard.html         interfaz del panel local
     dashboard_static.html   interfaz de la versión publicada en GitHub Pages

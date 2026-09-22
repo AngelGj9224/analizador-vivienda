@@ -165,6 +165,16 @@
   .side-title { font-size: 0.9rem; font-weight: 600; margin: 0 0 10px; }
   .legend-note { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4; }
   .count-note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+  .assumptions-note {
+    background: var(--neutral-bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
@@ -199,9 +209,11 @@
         <option value="price_desc">Precio: mayor a menor</option>
         <option value="ppm2_asc">$/m²: menor a mayor</option>
         <option value="vs_avg_asc">Más baratas vs. promedio</option>
+        <option value="mortgage20_asc">Mensualidad (20a): menor a mayor</option>
       </select>
     </div>
     <div class="count-note" id="count-note"></div>
+    <div id="mortgage-note" class="assumptions-note"></div>
     <div style="overflow-x:auto;">
       <table>
         <thead>
@@ -214,6 +226,7 @@
             <th class="num">Baños</th>
             <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
             <th>vs. promedio</th>
+            <th class="num" title="Estimado de mensualidad con crédito Infonavit, ver supuestos abajo de los filtros">Mensualidad Infonavit</th>
             <th></th>
           </tr>
         </thead>
@@ -266,6 +279,36 @@ function fmtPublished(iso) {
   return `${dateStr}<br><span style="color:var(--text-muted); font-size:0.72rem;">${daysLabel}</span>`;
 }
 
+function fmtMortgage(m) {
+  if (!m || !m.loan_amount) return "—";
+  const p20 = m.monthly_payments["20"];
+  const p25 = m.monthly_payments["25"];
+  const warn20 = m.exceeds_salary["20"];
+  const warn25 = m.exceeds_salary["25"];
+  const line = (years, payment, warn) => {
+    const style = warn ? ' style="color:var(--bad); font-weight:600;"' : "";
+    return `<span${style}>${money(payment)}</span> <span style="color:var(--text-muted); font-size:0.7rem;">(${years}a)</span>`;
+  };
+  let html = `${line(20, p20, warn20)}<br>${line(25, p25, warn25)}`;
+  if (m.exceeds_max_credit) {
+    html += `<br><span style="color:var(--bad); font-size:0.66rem;">⚠ supera el crédito máx.</span>`;
+  }
+  return html;
+}
+
+function renderMortgageNote(stats) {
+  const el = document.getElementById("mortgage-note");
+  const m = stats && stats.mortgage_assumptions;
+  if (!el || !m) return;
+  const pct = (m.annual_rate * 100).toFixed(2).replace(/\.?0+$/, "");
+  el.innerHTML =
+    `🏦 <strong>Mensualidad Infonavit</strong>: estimado con enganche ${money(m.down_payment)}, ` +
+    `tasa fija ${pct}% anual (nivel más alto 2026, para salario mensual mayor a 6.6 UMA), ` +
+    `sueldo de referencia ${money(m.salary)}/mes, a ${m.term_years.join(" y ")} años. ` +
+    `Es un cálculo aproximado (no incluye seguros); confirma tu tasa real en Mi Cuenta Infonavit. ` +
+    `En rojo: mensualidades que superan ese sueldo.`;
+}
+
 function verdictClass(verdict) {
   if (!verdict) return "neutral";
   if (verdict.includes("oportunidad")) return "good";
@@ -289,6 +332,7 @@ async function loadAll() {
   allListings = await listingsResp.json();
   const stats = await statsResp.json();
   renderCards(stats);
+  renderMortgageNote(stats);
   renderTable();
   renderChart();
   document.getElementById("last-update").textContent = stats.last_update
@@ -331,6 +375,9 @@ function renderTable() {
     price_desc: (a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity),
     ppm2_asc: (a, b) => (a.price_per_m2 ?? Infinity) - (b.price_per_m2 ?? Infinity),
     vs_avg_asc: (a, b) => (a.vs_avg_price_pct ?? Infinity) - (b.vs_avg_price_pct ?? Infinity),
+    mortgage20_asc: (a, b) =>
+      ((a.mortgage && a.mortgage.monthly_payments["20"]) ?? Infinity) -
+      ((b.mortgage && b.mortgage.monthly_payments["20"]) ?? Infinity),
   };
   rows = rows.sort(sorters[sortBy] || sorters.first_seen_desc);
 
@@ -360,6 +407,7 @@ function renderTable() {
           <td class="num">${l.bathrooms ?? "—"}</td>
           <td>${fmtPublished(l.first_seen)}</td>
           <td>${vsAvg}</td>
+          <td class="num">${fmtMortgage(l.mortgage)}</td>
           <td><a class="link-btn" href="${l.url}" target="_blank" rel="noopener">Ver publicación ↗</a></td>
         </tr>`;
     })
