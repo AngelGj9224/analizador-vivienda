@@ -326,8 +326,8 @@ function verdictFilterKey(verdict) {
 
 async function loadAll() {
   const [listingsResp, statsResp] = await Promise.all([
-    fetch("/api/listings"),
-    fetch("/api/stats"),
+    fetch("/api/listings", { cache: "no-store" }),
+    fetch("/api/stats", { cache: "no-store" }),
   ]);
   allListings = await listingsResp.json();
   const stats = await statsResp.json();

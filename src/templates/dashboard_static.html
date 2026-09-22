@@ -330,8 +330,8 @@ function verdictFilterKey(verdict) {
 
 async function loadAll() {
   const [listingsResp, statsResp] = await Promise.all([
-    fetch("listings.json"),
-    fetch("stats.json"),
+    fetch("listings.json?v=" + Date.now(), { cache: "no-store" }),
+    fetch("stats.json?v=" + Date.now(), { cache: "no-store" }),
   ]);
   allListings = await listingsResp.json();
   const stats = await statsResp.json();
