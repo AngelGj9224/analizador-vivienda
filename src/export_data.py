@@ -1,0 +1,57 @@
+"""
+Arma la información de publicaciones/estadísticas en el mismo formato que
+usan tanto el panel local (Flask, src/dashboard.py) como la publicación
+estática para GitHub Pages (src/publish.py), para no duplicar la lógica.
+"""
+
+from .analysis import compare_listing, compute_market_stats
+from .storage import Storage
+
+
+def listings_payload(storage: Storage) -> list:
+    listings = storage.get_active_listings()
+    stats = compute_market_stats(listings)
+
+    data = []
+    for l in listings:
+        comparison = compare_listing(l, stats)
+        price_per_m2 = (l.price / l.lot_size) if (l.price and l.lot_size) else None
+        data.append(
+            {
+                "id": l.id,
+                "source": l.source,
+                "title": l.title,
+                "url": l.url,
+                "price": l.price,
+                "currency": l.currency,
+                "maintenance": l.maintenance,
+                "lot_size": l.lot_size,
+                "bedrooms": l.bedrooms,
+                "bathrooms": l.bathrooms,
+                "parking": l.parking,
+                "location": l.location,
+                "first_seen": l.first_seen,
+                "last_seen": l.last_seen,
+                "price_per_m2": price_per_m2,
+                "vs_avg_price_pct": comparison["vs_avg_price_pct"],
+                "vs_avg_ppm2_pct": comparison["vs_avg_ppm2_pct"],
+                "verdict": comparison["verdict"],
+            }
+        )
+    return data
+
+
+def stats_payload(storage: Storage) -> dict:
+    listings = storage.get_active_listings()
+    stats = compute_market_stats(listings)
+    last_seen_values = [l.last_seen for l in listings if l.last_seen]
+    return {
+        "total_listings": len(listings),
+        "count_with_price": stats.count,
+        "avg_price": stats.avg_price,
+        "median_price": stats.median_price,
+        "min_price": stats.min_price,
+        "max_price": stats.max_price,
+        "avg_price_per_m2": stats.avg_price_per_m2,
+        "last_update": max(last_seen_values) if last_seen_values else None,
+    }

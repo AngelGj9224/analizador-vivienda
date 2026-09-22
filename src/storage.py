@@ -1,0 +1,124 @@
+import sqlite3
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Optional
+
+from .scrapers.base import Listing
+
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "listings.db"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS listings (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    title TEXT,
+    url TEXT,
+    price REAL,
+    currency TEXT,
+    maintenance REAL,
+    lot_size REAL,
+    bedrooms INTEGER,
+    bathrooms REAL,
+    parking INTEGER,
+    location TEXT,
+    first_seen TEXT,
+    last_seen TEXT,
+    active INTEGER DEFAULT 1
+);
+"""
+
+
+@dataclass
+class ListingRecord:
+    id: str
+    source: str
+    title: str
+    url: str
+    price: Optional[float]
+    currency: Optional[str]
+    maintenance: Optional[float]
+    lot_size: Optional[float]
+    bedrooms: Optional[int]
+    bathrooms: Optional[float]
+    parking: Optional[int]
+    location: str
+    first_seen: str
+    last_seen: str
+    active: int = 1
+
+
+class Storage:
+    def __init__(self, db_path: Path = DB_PATH):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = sqlite3.connect(str(db_path))
+        self.conn.row_factory = sqlite3.Row
+        self._ensure_schema()
+
+    def _ensure_schema(self):
+        self.conn.execute(SCHEMA)
+        cols = {row["name"] for row in self.conn.execute("PRAGMA table_info(listings)")}
+        if "active" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN active INTEGER DEFAULT 1")
+        self.conn.commit()
+
+    def upsert_listings(self, listings: List[Listing]) -> List[str]:
+        """Inserta publicaciones nuevas y actualiza precio/último-visto en las
+        existentes (reactivándolas si habían sido dadas de baja). Devuelve la
+        lista de ids que son nuevos (no existían antes)."""
+        now = datetime.now(timezone.utc).isoformat()
+        new_ids: List[str] = []
+        cur = self.conn.cursor()
+        for l in listings:
+            cur.execute("SELECT id FROM listings WHERE id = ?", (l.id,))
+            exists = cur.fetchone()
+            if exists:
+                cur.execute(
+                    "UPDATE listings SET last_seen=?, price=?, title=?, active=1 WHERE id=?",
+                    (now, l.price, l.title, l.id),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO listings
+                        (id, source, title, url, price, currency, maintenance, lot_size,
+                         bedrooms, bathrooms, parking, location, first_seen, last_seen, active)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+                    (
+                        l.id, l.source, l.title, l.url, l.price, l.currency, l.maintenance,
+                        l.lot_size, l.bedrooms, l.bathrooms, l.parking, l.location, now, now,
+                    ),
+                )
+                new_ids.append(l.id)
+        self.conn.commit()
+        return new_ids
+
+    def deactivate_missing(self, current_ids, source: str) -> int:
+        """Marca como inactivas (ya no disponibles) las publicaciones de
+        `source` que estaban activas pero no vinieron en `current_ids` (la
+        búsqueda más reciente). No las borra, solo deja de mostrarlas."""
+        cur = self.conn.execute(
+            "SELECT id FROM listings WHERE source=? AND active=1", (source,)
+        )
+        previously_active = {row["id"] for row in cur.fetchall()}
+        to_deactivate = previously_active - set(current_ids)
+        if not to_deactivate:
+            return 0
+        self.conn.executemany(
+            "UPDATE listings SET active=0 WHERE id=?", [(i,) for i in to_deactivate]
+        )
+        self.conn.commit()
+        return len(to_deactivate)
+
+    def get_active_listings(self) -> List[ListingRecord]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM listings WHERE active=1")
+        return [ListingRecord(**dict(row)) for row in cur.fetchall()]
+
+    def get_by_id(self, listing_id: str) -> Optional[ListingRecord]:
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM listings WHERE id=?", (listing_id,))
+        row = cur.fetchone()
+        return ListingRecord(**dict(row)) if row else None
+
+    def close(self):
+        self.conn.close()

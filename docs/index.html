@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Analizador de Vivienda — San Mateo Atenco</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e5e9;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --accent: #2563eb;
+    --good: #15803d;
+    --good-bg: #dcfce7;
+    --bad: #b91c1c;
+    --bad-bg: #fee2e2;
+    --neutral: #6b7280;
+    --neutral-bg: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --panel: #1c1f26;
+      --border: #2b2f38;
+      --text: #e7e9ee;
+      --text-muted: #9aa1ad;
+      --accent: #5b8def;
+      --good: #4ade80;
+      --good-bg: #163524;
+      --bad: #f87171;
+      --bad-bg: #3a1a1a;
+      --neutral: #9aa1ad;
+      --neutral-bg: #262a32;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px clamp(16px, 4vw, 40px) 60px;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  h1 { font-size: 1.4rem; margin: 0; }
+  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
+  #last-update { color: var(--text-muted); font-size: 0.8rem; }
+
+  .static-note {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .card .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+  .card .value { font-size: 1.3rem; font-weight: 600; margin-top: 4px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .filters input, .filters select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 0.85rem;
+  }
+  .filters input[type="text"] { flex: 1; min-width: 160px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  thead th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  thead th:hover { color: var(--text); }
+  tbody td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:hover { background: var(--neutral-bg); }
+  .title-cell { max-width: 260px; }
+  .title-cell .t { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .title-cell .loc { color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+  .num { text-align: right; white-space: nowrap; }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge.good { color: var(--good); background: var(--good-bg); }
+  .badge.bad { color: var(--bad); background: var(--bad-bg); }
+  .badge.neutral { color: var(--neutral); background: var(--neutral-bg); }
+  a.link-btn {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  a.link-btn:hover { text-decoration: underline; }
+  #empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 10px;
+    display: none;
+  }
+  #chart-wrap { position: relative; height: 220px; margin-bottom: 8px; }
+  .side-title { font-size: 0.9rem; font-weight: 600; margin: 0 0 10px; }
+  .legend-note { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4; }
+  .count-note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏠 Analizador de Vivienda — San Mateo Atenco</h1>
+    <div class="subtitle">Publicaciones guardadas automáticamente, comparadas contra el resto de la zona</div>
+  </div>
+  <span id="last-update">—</span>
+</header>
+
+<div class="static-note">
+  📱 Esta es una foto de los datos tal como estaban la última vez que se
+  publicaron desde la computadora — no se actualiza sola. Para verla al
+  día, corre la búsqueda y publícala de nuevo desde tu PC.
+</div>
+
+<div class="cards" id="cards"></div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="filters">
+      <input type="text" id="search" placeholder="Buscar por colonia o título..." oninput="renderTable()" />
+      <select id="filter-verdict" onchange="renderTable()">
+        <option value="">Todos los veredictos</option>
+        <option value="oportunidad">Posible buena oportunidad</option>
+        <option value="alto">Precio por arriba del promedio</option>
+        <option value="normal">Precio normal</option>
+      </select>
+      <select id="sort-by" onchange="renderTable()">
+        <option value="first_seen_desc">Publicadas más recientemente</option>
+        <option value="first_seen_asc">Con más tiempo publicadas</option>
+        <option value="price_asc">Precio: menor a mayor</option>
+        <option value="price_desc">Precio: mayor a menor</option>
+        <option value="ppm2_asc">$/m²: menor a mayor</option>
+        <option value="vs_avg_asc">Más baratas vs. promedio</option>
+      </select>
+    </div>
+    <div class="count-note" id="count-note"></div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Publicación</th>
+            <th class="num">Precio</th>
+            <th class="num">m²</th>
+            <th class="num">$/m²</th>
+            <th class="num">Rec.</th>
+            <th class="num">Baños</th>
+            <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
+            <th>vs. promedio</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div id="empty-state">No hay publicaciones guardadas todavía.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p class="side-title">Distribución de precios</p>
+    <div id="chart-wrap"><canvas id="priceChart"></canvas></div>
+    <p class="legend-note">
+      Cada barra agrupa publicaciones guardadas por rango de precio. Sirve para ver rápido
+      dónde se concentra la oferta en San Mateo Atenco y qué tan común (o rara) es una casa
+      por su precio.
+    </p>
+  </div>
+</div>
+
+<script>
+let allListings = [];
+let chartInstance = null;
+
+function money(v) {
+  if (v === null || v === undefined) return "—";
+  return "$" + Math.round(v).toLocaleString("es-MX");
+}
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function daysAgo(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const diffMs = Date.now() - d.getTime();
+  return Math.max(0, Math.floor(diffMs / 86400000));
+}
+
+function fmtPublished(iso) {
+  const days = daysAgo(iso);
+  const dateStr = fmtDate(iso);
+  if (days === null) return dateStr;
+  const daysLabel = days === 0 ? "hoy" : days === 1 ? "hace 1 día" : `hace ${days} días`;
+  return `${dateStr}<br><span style="color:var(--text-muted); font-size:0.72rem;">${daysLabel}</span>`;
+}
+
+function verdictClass(verdict) {
+  if (!verdict) return "neutral";
+  if (verdict.includes("oportunidad")) return "good";
+  if (verdict.includes("arriba")) return "bad";
+  return "neutral";
+}
+
+function verdictFilterKey(verdict) {
+  if (!verdict) return "";
+  if (verdict.includes("oportunidad")) return "oportunidad";
+  if (verdict.includes("arriba")) return "alto";
+  if (verdict.includes("normal")) return "normal";
+  return "";
+}
+
+async function loadAll() {
+  const [listingsResp, statsResp] = await Promise.all([
+    fetch("listings.json"),
+    fetch("stats.json"),
+  ]);
+  allListings = await listingsResp.json();
+  const stats = await statsResp.json();
+  renderCards(stats);
+  renderTable();
+  renderChart();
+  document.getElementById("last-update").textContent = stats.last_update
+    ? "Datos al: " + fmtDate(stats.last_update)
+    : "Sin datos aún";
+}
+
+function renderCards(stats) {
+  const cards = [
+    { label: "Publicaciones guardadas", value: stats.total_listings ?? 0 },
+    { label: "Precio promedio", value: money(stats.avg_price) },
+    { label: "Precio mediana", value: money(stats.median_price) },
+    { label: "$/m² promedio", value: stats.avg_price_per_m2 ? money(stats.avg_price_per_m2) : "—" },
+    { label: "Precio mínimo", value: money(stats.min_price) },
+    { label: "Precio máximo", value: money(stats.max_price) },
+  ];
+  document.getElementById("cards").innerHTML = cards
+    .map((c) => `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`)
+    .join("");
+}
+
+function renderTable() {
+  const search = document.getElementById("search").value.trim().toLowerCase();
+  const verdictFilter = document.getElementById("filter-verdict").value;
+  const sortBy = document.getElementById("sort-by").value;
+
+  let rows = allListings.filter((l) => {
+    if (search) {
+      const hay = (l.title || "").toLowerCase() + " " + (l.location || "").toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    if (verdictFilter && verdictFilterKey(l.verdict) !== verdictFilter) return false;
+    return true;
+  });
+
+  const sorters = {
+    first_seen_desc: (a, b) => (b.first_seen || "").localeCompare(a.first_seen || ""),
+    first_seen_asc: (a, b) => (a.first_seen || "").localeCompare(b.first_seen || ""),
+    price_asc: (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity),
+    price_desc: (a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity),
+    ppm2_asc: (a, b) => (a.price_per_m2 ?? Infinity) - (b.price_per_m2 ?? Infinity),
+    vs_avg_asc: (a, b) => (a.vs_avg_price_pct ?? Infinity) - (b.vs_avg_price_pct ?? Infinity),
+  };
+  rows = rows.sort(sorters[sortBy] || sorters.first_seen_desc);
+
+  document.getElementById("count-note").textContent =
+    `${rows.length} de ${allListings.length} publicaciones`;
+
+  const tbody = document.getElementById("table-body");
+  document.getElementById("empty-state").style.display = allListings.length === 0 ? "block" : "none";
+
+  tbody.innerHTML = rows
+    .map((l) => {
+      const vClass = verdictClass(l.verdict);
+      const vsAvg =
+        l.vs_avg_price_pct === null || l.vs_avg_price_pct === undefined
+          ? '<span class="badge neutral">sin datos</span>'
+          : `<span class="badge ${vClass}">${l.vs_avg_price_pct > 0 ? "+" : ""}${l.vs_avg_price_pct.toFixed(1)}%</span>`;
+      return `
+        <tr>
+          <td class="title-cell">
+            <div class="t" title="${(l.title || "").replace(/"/g, '&quot;')}">${l.title || "(sin título)"}</div>
+            <div class="loc">${l.location || ""}</div>
+          </td>
+          <td class="num">${money(l.price)}</td>
+          <td class="num">${l.lot_size ? Math.round(l.lot_size) : "—"}</td>
+          <td class="num">${l.price_per_m2 ? money(l.price_per_m2) : "—"}</td>
+          <td class="num">${l.bedrooms ?? "—"}</td>
+          <td class="num">${l.bathrooms ?? "—"}</td>
+          <td>${fmtPublished(l.first_seen)}</td>
+          <td>${vsAvg}</td>
+          <td><a class="link-btn" href="${l.url}" target="_blank" rel="noopener">Ver publicación ↗</a></td>
+        </tr>`;
+    })
+    .join("");
+}
+
+function renderChart() {
+  const priced = allListings.filter((l) => l.price);
+  if (priced.length === 0) return;
+
+  const prices = priced.map((l) => l.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const bucketCount = 8;
+  const bucketSize = Math.max((max - min) / bucketCount, 1);
+  const buckets = new Array(bucketCount).fill(0);
+
+  prices.forEach((p) => {
+    let idx = Math.floor((p - min) / bucketSize);
+    if (idx >= bucketCount) idx = bucketCount - 1;
+    if (idx < 0) idx = 0;
+    buckets[idx]++;
+  });
+
+  const labels = buckets.map((_, i) => {
+    const lo = min + i * bucketSize;
+    const hi = lo + bucketSize;
+    const fmt = (v) => "$" + Math.round(v / 1000) + "k";
+    return `${fmt(lo)}–${fmt(hi)}`;
+  });
+
+  const styles = getComputedStyle(document.documentElement);
+  const accent = styles.getPropertyValue("--accent").trim();
+  const text = styles.getPropertyValue("--text-muted").trim();
+
+  if (chartInstance) chartInstance.destroy();
+  const ctx = document.getElementById("priceChart").getContext("2d");
+  chartInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{ label: "Publicaciones", data: buckets, backgroundColor: accent, borderRadius: 4 }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: text, font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: text, precision: 0 }, grid: { color: "rgba(128,128,128,0.15)" } },
+      },
+    },
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
