@@ -87,5 +87,7 @@ def stats_payload(storage: Storage) -> dict:
             "salary": mortgage.SALARY,
             "term_years": list(mortgage.TERM_YEARS),
             "max_credit_tradicional": mortgage.MAX_CREDIT_TRADICIONAL,
+            "closing_costs_pct": mortgage.CLOSING_COSTS_PCT,
+            "employer_contribution_pct": mortgage.EMPLOYER_CONTRIBUTION_PCT,
         },
     }

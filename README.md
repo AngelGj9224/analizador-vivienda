@@ -91,11 +91,14 @@ O doble clic en [`abrir_panel.bat`](abrir_panel.bat). Se abre tu
 navegador en `http://127.0.0.1:5050` con:
 
 - Tarjetas resumen (total de publicaciones, precio promedio/mediana,
-  $/m² promedio, mínimo y máximo).
-- Buscador por colonia/título, filtro por veredicto, y varios órdenes
-  (precio, $/m², más baratas vs. el promedio).
+  $/m² promedio, mínimo y máximo) que se recalculan según los filtros que
+  tengas activos.
+- Filtro de zona, buscador por colonia/título, **precio máximo**, filtro
+  por veredicto, y varios órdenes (precio, $/m², más baratas vs. el
+  promedio, mensualidad).
 - Un botón "Ver publicación" en cada fila que abre el anuncio original.
-- Una gráfica de distribución de precios de la zona.
+- Una gráfica de distribución de precios, también según los filtros
+  activos.
 
 Puedes dejar el panel abierto y solo darle "↻ Actualizar" después de
 correr una nueva búsqueda.
@@ -137,26 +140,38 @@ públicas, no debería ser un problema, pero tenlo presente.
 
 ## Mensualidad estimada (crédito Infonavit)
 
-Cada publicación muestra una columna con el pago mensual aproximado si la
-compraras con crédito Infonavit, a 20 y a 25 años, con estos supuestos:
+Cada publicación muestra una columna con el pago mensual **neto**
+aproximado si la compraras con crédito Infonavit, a 20 y a 25 años. El
+cálculo hace esto, en orden:
 
-- **Enganche:** $1,000,000 MXN
-- **Tasa:** 10.45% anual fija — es la tasa más alta del rango 2026
-  (3.69%–10.45%), que aplica a salarios mensuales por arriba de 6.6 UMA
-  (~$23,537); con un sueldo de $42,000 te toca ese tramo.
-- **Fórmula:** amortización estándar (pago fijo mensual), sin seguros ni
-  comisiones.
+1. **Enganche $1,000,000**, pero antes de aplicarlo al precio le resta
+   los **gastos de escrituración estimados** (ISAI, notario, registro,
+   avalúo) — se usa **6% del precio** como estimado intermedio (varía
+   4%–9% según estado/notario). O sea: no todo tu enganche baja el precio
+   de la casa, una parte se la comen esos gastos.
+2. Con el enganche que sobra, calcula el crédito necesario y el pago
+   mensual con **tasa fija 10.45% anual** — la más alta del rango 2026
+   (3.69%–10.45%), que aplica a salarios por arriba de 6.6 UMA
+   (~$23,537); con $42,000 de sueldo te toca ese tramo.
+3. A ese pago le resta la **aportación patronal** (5% de tu sueldo =
+   $2,100/mes): es obligatoria por ley, y una vez que tienes un crédito
+   Infonavit activo, tu patrón la abona directo al crédito cada bimestre
+   — por eso el número que ves ya no incluye esa parte.
 
-Si el crédito necesario (precio − enganche) supera el tope 2026 del
-crédito tradicional Infonavit (~$2,935,000), se muestra una advertencia —
-en ese caso normalmente se necesitaría complementar con Cofinavit u otro
-crédito. Si la mensualidad de algún plazo supera tu sueldo de $42,000, se
-muestra en rojo.
+Si el crédito necesario supera el tope 2026 del crédito tradicional
+Infonavit (~$2,935,000), se muestra una advertencia — en ese caso
+normalmente se necesitaría complementar con Cofinavit u otro crédito. Si
+la mensualidad neta de algún plazo aun así supera tu sueldo de $42,000,
+se muestra en rojo.
 
-Estos supuestos (enganche, tasa, sueldo, plazos) están en
-`src/mortgage.py` — cámbialos ahí si cambian tus números. Es un estimado
-para comparar entre casas, no un cálculo oficial: la tasa real depende de
-tu precalificación en Mi Cuenta Infonavit.
+Estos supuestos (enganche, % de escrituración, tasa, sueldo, aportación
+patronal, plazos) están en [`src/mortgage.py`](src/mortgage.py) —
+cámbialos ahí si cambian tus números; ese archivo también trae las
+fuentes que usé para la tasa, el % de aportación patronal y el rango
+típico de gastos de escrituración. Es un estimado para comparar entre
+casas, no un cálculo oficial: la tasa real depende de tu precalificación
+en Mi Cuenta Infonavit, y los gastos de escrituración exactos, de la
+cotización de un notario.
 
 ## Cómo decide si algo es "buena oportunidad"
 

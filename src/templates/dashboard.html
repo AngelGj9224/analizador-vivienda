@@ -113,6 +113,7 @@
     font-size: 0.85rem;
   }
   .filters input[type="text"] { flex: 1; min-width: 160px; }
+  .filters input[type="number"] { width: 130px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
   thead th {
@@ -208,6 +209,7 @@
         <option value="">Todas las zonas</option>
       </select>
       <input type="text" id="search" placeholder="Buscar por colonia o título..." oninput="renderTable()" />
+      <input type="number" id="filter-max-price" placeholder="Precio máximo $" min="0" step="100000" oninput="renderTable()" />
       <select id="filter-verdict" onchange="renderTable()">
         <option value="">Todos los veredictos</option>
         <option value="oportunidad">Posible buena oportunidad</option>
@@ -238,7 +240,7 @@
             <th class="num">Baños</th>
             <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
             <th>vs. promedio</th>
-            <th class="num" title="Estimado de mensualidad con crédito Infonavit, ver supuestos abajo de los filtros">Mensualidad Infonavit</th>
+            <th class="num" title="Ya descuenta la aportación patronal; ver supuestos abajo de los filtros">Mensualidad neta (Infonavit)</th>
             <th></th>
           </tr>
         </thead>
@@ -293,8 +295,8 @@ function fmtPublished(iso) {
 
 function fmtMortgage(m) {
   if (!m || !m.loan_amount) return "—";
-  const p20 = m.monthly_payments["20"];
-  const p25 = m.monthly_payments["25"];
+  const p20 = m.monthly_payments_net["20"];
+  const p25 = m.monthly_payments_net["25"];
   const warn20 = m.exceeds_salary["20"];
   const warn25 = m.exceeds_salary["25"];
   const line = (years, payment, warn) => {
@@ -313,12 +315,19 @@ function renderMortgageNote(stats) {
   const m = stats && stats.mortgage_assumptions;
   if (!el || !m) return;
   const pct = (m.annual_rate * 100).toFixed(2).replace(/\.?0+$/, "");
+  const closingPct = (m.closing_costs_pct * 100).toFixed(0);
+  const employerPct = (m.employer_contribution_pct * 100).toFixed(0);
+  const employerAmount = m.salary * m.employer_contribution_pct;
   el.innerHTML =
-    `🏦 <strong>Mensualidad Infonavit</strong>: estimado con enganche ${money(m.down_payment)}, ` +
-    `tasa fija ${pct}% anual (nivel más alto 2026, para salario mensual mayor a 6.6 UMA), ` +
-    `sueldo de referencia ${money(m.salary)}/mes, a ${m.term_years.join(" y ")} años. ` +
-    `Es un cálculo aproximado (no incluye seguros); confirma tu tasa real en Mi Cuenta Infonavit. ` +
-    `En rojo: mensualidades que superan ese sueldo.`;
+    `🏦 <strong>Mensualidad Infonavit (neta)</strong>: enganche ${money(m.down_payment)}, menos ` +
+    `~${closingPct}% del precio en gastos de escrituración estimados (ISAI, notario, registro), ` +
+    `es lo que de verdad baja el precio de la casa; el resto se financia a tasa fija ${pct}% anual ` +
+    `(nivel más alto 2026, salario mayor a 6.6 UMA), a ${m.term_years.join(" y ")} años. ` +
+    `A ese pago ya se le resta la aportación patronal obligatoria (${employerPct}% de tu sueldo de ` +
+    `${money(m.salary)} = ${money(employerAmount)}/mes), que tu patrón mete directo al crédito una ` +
+    `vez que lo tienes activo. Es un cálculo aproximado (no incluye seguros ni la cotización real de ` +
+    `un notario); confirma tu tasa y tu descuento de nómina real en Mi Cuenta Infonavit. En rojo: ` +
+    `mensualidades que aun así superan ese sueldo.`;
 }
 
 function verdictClass(verdict) {
@@ -399,6 +408,8 @@ function renderCards(stats) {
 function renderTable() {
   const zoneFilter = document.getElementById("filter-zone").value;
   const search = document.getElementById("search").value.trim().toLowerCase();
+  const maxPriceRaw = document.getElementById("filter-max-price").value;
+  const maxPrice = maxPriceRaw ? Number(maxPriceRaw) : null;
   const verdictFilter = document.getElementById("filter-verdict").value;
   const sortBy = document.getElementById("sort-by").value;
 
@@ -408,6 +419,7 @@ function renderTable() {
       const hay = (l.title || "").toLowerCase() + " " + (l.location || "").toLowerCase();
       if (!hay.includes(search)) return false;
     }
+    if (maxPrice !== null && (l.price === null || l.price === undefined || l.price > maxPrice)) return false;
     if (verdictFilter && verdictFilterKey(l.verdict) !== verdictFilter) return false;
     return true;
   });
@@ -423,8 +435,8 @@ function renderTable() {
     ppm2_asc: (a, b) => (a.price_per_m2 ?? Infinity) - (b.price_per_m2 ?? Infinity),
     vs_avg_asc: (a, b) => (a.vs_avg_price_pct ?? Infinity) - (b.vs_avg_price_pct ?? Infinity),
     mortgage20_asc: (a, b) =>
-      ((a.mortgage && a.mortgage.monthly_payments["20"]) ?? Infinity) -
-      ((b.mortgage && b.mortgage.monthly_payments["20"]) ?? Infinity),
+      ((a.mortgage && a.mortgage.monthly_payments_net["20"]) ?? Infinity) -
+      ((b.mortgage && b.mortgage.monthly_payments_net["20"]) ?? Infinity),
   };
   rows = rows.sort(sorters[sortBy] || sorters.first_seen_desc);
 
