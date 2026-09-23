@@ -1,8 +1,10 @@
 """
 Panel local de análisis: lee la base de datos (data/listings.db) que va
 llenando src/main.py y la muestra en una página web en tu propia
-computadora (http://127.0.0.1:5050). No manda ni recibe nada por internet
-más que las librerías de estilo/gráficas (CDN).
+computadora (http://127.0.0.1:5050). Los favoritos se guardan en Firebase
+directo desde el navegador (ver src/static/favorites.js) -- este backend
+no los maneja. No manda ni recibe nada más por internet que las
+librerías de estilo/gráficas (CDN) y, si la configuraste, Firebase.
 """
 
 import logging
@@ -10,14 +12,18 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template
 
 from .export_data import listings_payload, stats_payload
 from .storage import Storage
 
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
+app = Flask(
+    __name__,
+    template_folder=str(Path(__file__).parent / "templates"),
+    static_folder=str(Path(__file__).parent / "static"),
+)
 
 HOST = "127.0.0.1"
 PORT = 5050
@@ -42,19 +48,6 @@ def api_stats():
     storage = Storage()
     try:
         return jsonify(stats_payload(storage))
-    finally:
-        storage.close()
-
-
-@app.route("/api/favorite/<listing_id>", methods=["POST"])
-def api_favorite(listing_id):
-    favorite = bool((request.get_json(silent=True) or {}).get("favorite", True))
-    storage = Storage()
-    try:
-        ok = storage.set_favorite(listing_id, favorite)
-        if not ok:
-            return jsonify({"error": "no existe esa publicación"}), 404
-        return jsonify({"id": listing_id, "favorite": favorite})
     finally:
         storage.close()
 

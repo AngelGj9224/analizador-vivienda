@@ -10,6 +10,7 @@ me digas.
 
 import json
 import logging
+import shutil
 from pathlib import Path
 
 from .export_data import listings_payload, stats_payload
@@ -20,6 +21,10 @@ logger = logging.getLogger("publish")
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "dashboard_static.html"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+# Archivos compartidos con el panel local que la versión estática también
+# necesita (CSS, JS, y la config de Firebase para los favoritos).
+SHARED_ASSETS = ["app.css", "app.js", "favorites.js", "firebase_config.js"]
 
 
 def publish():
@@ -41,6 +46,9 @@ def publish():
 
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
     (DOCS_DIR / "index.html").write_text(html, encoding="utf-8")
+
+    for asset in SHARED_ASSETS:
+        shutil.copyfile(STATIC_DIR / asset, DOCS_DIR / asset)
 
     logger.info("Listo: %d publicaciones exportadas a %s", len(listings), DOCS_DIR)
     logger.info(

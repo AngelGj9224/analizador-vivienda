@@ -4,217 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Analizador de Vivienda</title>
+<link rel="stylesheet" href="app.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<style>
-  :root {
-    --bg: #f5f6f8;
-    --panel: #ffffff;
-    --border: #e3e5e9;
-    --text: #1a1d23;
-    --text-muted: #6b7280;
-    --accent: #2563eb;
-    --good: #15803d;
-    --good-bg: #dcfce7;
-    --bad: #b91c1c;
-    --bad-bg: #fee2e2;
-    --neutral: #6b7280;
-    --neutral-bg: #eef0f3;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #14161a;
-      --panel: #1c1f26;
-      --border: #2b2f38;
-      --text: #e7e9ee;
-      --text-muted: #9aa1ad;
-      --accent: #5b8def;
-      --good: #4ade80;
-      --good-bg: #163524;
-      --bad: #f87171;
-      --bad-bg: #3a1a1a;
-      --neutral: #9aa1ad;
-      --neutral-bg: #262a32;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    padding: 24px clamp(16px, 4vw, 40px) 60px;
-  }
-  header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-  h1 { font-size: 1.4rem; margin: 0; }
-  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
-  #last-update { color: var(--text-muted); font-size: 0.8rem; }
-
-  .static-note {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    margin-bottom: 20px;
-  }
-
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 16px;
-  }
-  .card .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
-  .card .value { font-size: 1.3rem; font-weight: 600; margin-top: 4px; }
-
-  .layout {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 16px;
-    align-items: start;
-  }
-  @media (max-width: 900px) {
-    .layout { grid-template-columns: 1fr; }
-  }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-  }
-
-  .filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-  .filters input, .filters select {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 8px;
-    padding: 7px 10px;
-    font-size: 0.85rem;
-  }
-  .filters input[type="text"] { flex: 1; min-width: 160px; }
-  .filters input[type="number"] { width: 130px; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-  thead th {
-    text-align: left;
-    padding: 8px 10px;
-    color: var(--text-muted);
-    font-weight: 600;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    white-space: nowrap;
-    user-select: none;
-  }
-  thead th:hover { color: var(--text); }
-  tbody td {
-    padding: 9px 10px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: top;
-  }
-  tbody tr:hover { background: var(--neutral-bg); }
-  .title-cell { max-width: 260px; }
-  .title-cell .t { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .title-cell .loc { color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
-  .zone-tag {
-    display: inline-block;
-    margin-top: 4px;
-    padding: 1px 7px;
-    border-radius: 999px;
-    font-size: 0.66rem;
-    background: var(--neutral-bg);
-    color: var(--text-muted);
-  }
-  .also-in {
-    display: block;
-    margin-top: 3px;
-    font-size: 0.66rem;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-  .fav-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1.05rem;
-    line-height: 1;
-    padding: 2px;
-    opacity: 0.55;
-  }
-  .fav-btn:hover { opacity: 1; }
-  .fav-btn.is-fav { opacity: 1; }
-  .fav-filter-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.83rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    white-space: nowrap;
-    padding: 0 4px;
-  }
-  .num { text-align: right; white-space: nowrap; }
-  .badge {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .badge.good { color: var(--good); background: var(--good-bg); }
-  .badge.bad { color: var(--bad); background: var(--bad-bg); }
-  .badge.neutral { color: var(--neutral); background: var(--neutral-bg); }
-  a.link-btn {
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  a.link-btn:hover { text-decoration: underline; }
-  #empty-state {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 40px 10px;
-    display: none;
-  }
-  #chart-wrap { position: relative; height: 220px; margin-bottom: 8px; }
-  .side-title { font-size: 0.9rem; font-weight: 600; margin: 0 0 10px; }
-  .legend-note { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4; }
-  .count-note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
-  .assumptions-note {
-    background: var(--neutral-bg);
-    border-left: 3px solid var(--accent);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 0.74rem;
-    color: var(--text-muted);
-    line-height: 1.4;
-    margin-bottom: 12px;
-  }
-</style>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -223,410 +16,118 @@
     <h1>🏠 Analizador de Vivienda</h1>
     <div class="subtitle">Publicaciones guardadas automáticamente, comparadas contra el resto de su misma zona/búsqueda</div>
   </div>
-  <span id="last-update">—</span>
+  <div class="header-actions">
+    <span id="last-update">—</span>
+    <button class="refresh" id="refresh-btn">↻ Actualizar</button>
+  </div>
 </header>
 
 <div class="static-note">
-  📱 Esta es una foto de los datos tal como estaban la última vez que se
-  publicaron desde la computadora — no se actualiza sola. Para verla al
-  día, corre la búsqueda y publícala de nuevo desde tu PC. Las ❤️ que
-  marques aquí se guardan solo en este navegador/celular (no se sincronizan
-  con tu PC).
+  📱 Los datos de las casas son una foto de la última vez que se publicaron
+  desde la computadora — no se actualizan solos (corre la búsqueda y
+  publícala de nuevo desde tu PC para traer novedades). Tus ❤️ favoritas sí
+  están al día siempre, sin importar desde dónde las marques.
 </div>
 
-<div class="cards" id="cards"></div>
+<div class="view-tabs">
+  <button type="button" class="view-tab active" id="tab-all">Todas <span class="count" id="tab-all-count"></span></button>
+  <button type="button" class="view-tab" id="tab-favorites">❤️ Favoritas <span class="count" id="tab-fav-count"></span></button>
+</div>
 
-<div class="layout">
-  <div class="panel">
-    <div class="filters">
-      <select id="filter-zone" onchange="renderTable()">
-        <option value="">Todas las zonas</option>
-      </select>
-      <input type="text" id="search" placeholder="Buscar por colonia o título..." oninput="renderTable()" />
-      <input type="number" id="filter-max-price" placeholder="Precio máximo $" min="0" step="100000" oninput="renderTable()" />
-      <select id="filter-verdict" onchange="renderTable()">
-        <option value="">Todos los veredictos</option>
-        <option value="oportunidad">Posible buena oportunidad</option>
-        <option value="alto">Precio por arriba del promedio</option>
-        <option value="normal">Precio normal</option>
-      </select>
-      <select id="sort-by" onchange="renderTable()">
-        <option value="first_seen_desc">Publicadas más recientemente</option>
-        <option value="first_seen_asc">Con más tiempo publicadas</option>
-        <option value="price_asc">Precio: menor a mayor</option>
-        <option value="price_desc">Precio: mayor a menor</option>
-        <option value="ppm2_asc">$/m²: menor a mayor</option>
-        <option value="vs_avg_asc">Más baratas vs. promedio</option>
-        <option value="mortgage20_asc">Mensualidad (20a): menor a mayor</option>
-        <option value="age_asc">Más nuevas (menos antigüedad)</option>
-        <option value="favorite_first">Favoritas primero</option>
-      </select>
-      <label class="fav-filter-label">
-        <input type="checkbox" id="filter-favorites" onchange="renderTable()" />
-        ❤️ Solo favoritas
-      </label>
-    </div>
-    <div class="count-note" id="count-note"></div>
-    <div id="mortgage-note" class="assumptions-note"></div>
-    <div style="overflow-x:auto;">
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            <th>Publicación</th>
-            <th class="num">Precio</th>
-            <th class="num">m²</th>
-            <th class="num">$/m²</th>
-            <th class="num">Rec.</th>
-            <th class="num">Baños</th>
-            <th class="num" title="Extraída del texto de la publicación cuando la menciona; no siempre está disponible">Antigüedad</th>
-            <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
-            <th>vs. promedio</th>
-            <th class="num" title="Ya descuenta la aportación patronal; ver supuestos abajo de los filtros">Mensualidad neta (Infonavit)</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-      </table>
-      <div id="empty-state">No hay publicaciones guardadas todavía.</div>
-    </div>
+<div id="skeleton">
+  <div class="cards">
+    <div class="card skeleton skel-card"></div>
+    <div class="card skeleton skel-card"></div>
+    <div class="card skeleton skel-card"></div>
+    <div class="card skeleton skel-card"></div>
   </div>
-
   <div class="panel">
-    <p class="side-title">Distribución de precios</p>
-    <div id="chart-wrap"><canvas id="priceChart"></canvas></div>
-    <p class="legend-note">
-      Cada barra agrupa publicaciones guardadas por rango de precio, según los filtros
-      de arriba (zona, búsqueda, veredicto). Sirve para ver rápido dónde se concentra
-      la oferta y qué tan común (o rara) es una casa por su precio.
-    </p>
+    <div class="skeleton skel-row"></div>
+    <div class="skeleton skel-row"></div>
+    <div class="skeleton skel-row"></div>
+    <div class="skeleton skel-row"></div>
   </div>
 </div>
 
+<div id="content" style="display:none">
+  <div class="cards" id="cards"></div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="filters">
+        <select id="filter-zone">
+          <option value="">Todas las zonas</option>
+        </select>
+        <input type="text" id="search" placeholder="Buscar por colonia o título..." />
+        <input type="number" id="filter-max-price" placeholder="Precio máximo $" min="0" step="100000" />
+        <select id="filter-verdict">
+          <option value="">Todos los veredictos</option>
+          <option value="oportunidad">Posible buena oportunidad</option>
+          <option value="alto">Precio por arriba del promedio</option>
+          <option value="normal">Precio normal</option>
+        </select>
+        <select id="sort-by">
+          <option value="first_seen_desc">Publicadas más recientemente</option>
+          <option value="first_seen_asc">Con más tiempo publicadas</option>
+          <option value="price_asc">Precio: menor a mayor</option>
+          <option value="price_desc">Precio: mayor a menor</option>
+          <option value="ppm2_asc">$/m²: menor a mayor</option>
+          <option value="vs_avg_asc">Más baratas vs. promedio</option>
+          <option value="mortgage20_asc">Mensualidad (20a): menor a mayor</option>
+          <option value="age_asc">Más nuevas (menos antigüedad)</option>
+        </select>
+      </div>
+      <div class="count-note" id="count-note"></div>
+      <div id="mortgage-note" class="assumptions-note"></div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Publicación</th>
+              <th class="num">Precio</th>
+              <th class="num">m²</th>
+              <th class="num">$/m²</th>
+              <th class="num">Rec.</th>
+              <th class="num">Baños</th>
+              <th class="num" title="Extraída del texto de la publicación cuando la menciona; no siempre está disponible">Antigüedad</th>
+              <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
+              <th>vs. promedio</th>
+              <th class="num" title="Ya descuenta la aportación patronal; ver supuestos abajo de los filtros">Mensualidad neta (Infonavit)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+        <div id="empty-state"></div>
+      </div>
+      <div class="sync-note" id="sync-note"></div>
+    </div>
+
+    <div class="panel">
+      <p class="side-title">Distribución de precios</p>
+      <div id="chart-wrap"><canvas id="priceChart"></canvas></div>
+      <p class="legend-note">
+        Cada barra agrupa publicaciones guardadas por rango de precio, según los filtros
+        de arriba (zona, búsqueda, veredicto). Sirve para ver rápido dónde se concentra
+        la oferta y qué tan común (o rara) es una casa por su precio.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="firebase_config.js"></script>
+<script src="favorites.js"></script>
+<script src="app.js"></script>
 <script>
-let allListings = [];
-let chartInstance = null;
-
-function money(v) {
-  if (v === null || v === undefined) return "—";
-  return "$" + Math.round(v).toLocaleString("es-MX");
-}
-
-function fmtDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d)) return iso;
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function daysAgo(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d)) return null;
-  const diffMs = Date.now() - d.getTime();
-  return Math.max(0, Math.floor(diffMs / 86400000));
-}
-
-function fmtPublished(iso) {
-  const days = daysAgo(iso);
-  const dateStr = fmtDate(iso);
-  if (days === null) return dateStr;
-  const daysLabel = days === 0 ? "hoy" : days === 1 ? "hace 1 día" : `hace ${days} días`;
-  return `${dateStr}<br><span style="color:var(--text-muted); font-size:0.72rem;">${daysLabel}</span>`;
-}
-
-function fmtAge(years) {
-  if (years === null || years === undefined) return "—";
-  return years === 0 ? "Nueva" : `${years} años`;
-}
-
-const SOURCE_LABELS = { inmuebles24: "Inmuebles24", vivanuncios: "Vivanuncios" };
-
-function fmtAlsoIn(alsoIn) {
-  if (!alsoIn || alsoIn.length === 0) return "";
-  const names = alsoIn.map((s) => SOURCE_LABELS[s] || s).join(", ");
-  return `<span class="also-in">también en ${names}</span>`;
-}
-
-function getLocalFavorites() {
-  try {
-    return JSON.parse(localStorage.getItem("favorites") || "{}");
-  } catch (e) {
-    return {};
+  async function fetchData() {
+    const [listingsResp, statsResp] = await Promise.all([
+      fetch("listings.json?v=" + Date.now(), { cache: "no-store" }),
+      fetch("stats.json?v=" + Date.now(), { cache: "no-store" }),
+    ]);
+    return { listings: await listingsResp.json(), stats: await statsResp.json() };
   }
-}
-
-function setLocalFavorite(id, value) {
-  try {
-    const favs = getLocalFavorites();
-    if (value) favs[id] = true;
-    else delete favs[id];
-    localStorage.setItem("favorites", JSON.stringify(favs));
-  } catch (e) {
-    // localStorage no disponible (modo privado, etc.) — se pierde al recargar
-  }
-}
-
-function toggleFavorite(id) {
-  const listing = allListings.find((l) => l.id === id);
-  if (!listing) return;
-  listing.favorite = !listing.favorite;
-  setLocalFavorite(id, listing.favorite);
-  renderTable();
-}
-
-function fmtMortgage(m) {
-  if (!m || !m.loan_amount) return "—";
-  const p20 = m.monthly_payments_net["20"];
-  const p25 = m.monthly_payments_net["25"];
-  const warn20 = m.exceeds_salary["20"];
-  const warn25 = m.exceeds_salary["25"];
-  const line = (years, payment, warn) => {
-    const style = warn ? ' style="color:var(--bad); font-weight:600;"' : "";
-    return `<span${style}>${money(payment)}</span> <span style="color:var(--text-muted); font-size:0.7rem;">(${years}a)</span>`;
-  };
-  let html = `${line(20, p20, warn20)}<br>${line(25, p25, warn25)}`;
-  if (m.exceeds_max_credit) {
-    html += `<br><span style="color:var(--bad); font-size:0.66rem;">⚠ supera el crédito máx.</span>`;
-  }
-  return html;
-}
-
-function renderMortgageNote(stats) {
-  const el = document.getElementById("mortgage-note");
-  const m = stats && stats.mortgage_assumptions;
-  if (!el || !m) return;
-  const pct = (m.annual_rate * 100).toFixed(2).replace(/\.?0+$/, "");
-  const closingPct = (m.closing_costs_pct * 100).toFixed(0);
-  const employerPct = (m.employer_contribution_pct * 100).toFixed(0);
-  const employerAmount = m.salary * m.employer_contribution_pct;
-  el.innerHTML =
-    `🏦 <strong>Mensualidad Infonavit (neta)</strong>: enganche ${money(m.down_payment)}, menos ` +
-    `~${closingPct}% del precio en gastos de escrituración estimados (ISAI, notario, registro), ` +
-    `es lo que de verdad baja el precio de la casa; el resto se financia a tasa fija ${pct}% anual ` +
-    `(nivel más alto 2026, salario mayor a 6.6 UMA), a ${m.term_years.join(" y ")} años. ` +
-    `A ese pago ya se le resta la aportación patronal obligatoria (${employerPct}% de tu sueldo de ` +
-    `${money(m.salary)} = ${money(employerAmount)}/mes), que tu patrón mete directo al crédito una ` +
-    `vez que lo tienes activo. Es un cálculo aproximado (no incluye seguros ni la cotización real de ` +
-    `un notario); confirma tu tasa y tu descuento de nómina real en Mi Cuenta Infonavit. En rojo: ` +
-    `mensualidades que aun así superan ese sueldo.`;
-}
-
-function verdictClass(verdict) {
-  if (!verdict) return "neutral";
-  if (verdict.includes("oportunidad")) return "good";
-  if (verdict.includes("arriba")) return "bad";
-  return "neutral";
-}
-
-function verdictFilterKey(verdict) {
-  if (!verdict) return "";
-  if (verdict.includes("oportunidad")) return "oportunidad";
-  if (verdict.includes("arriba")) return "alto";
-  if (verdict.includes("normal")) return "normal";
-  return "";
-}
-
-function populateZoneFilter(searches) {
-  const sel = document.getElementById("filter-zone");
-  const current = sel.value;
-  const options = (searches || []).map(
-    (s) => `<option value="${s.key}">${s.label} (${s.count})</option>`
-  );
-  sel.innerHTML = '<option value="">Todas las zonas</option>' + options.join("");
-  sel.value = current || "";
-}
-
-async function loadAll() {
-  const [listingsResp, statsResp] = await Promise.all([
-    fetch("listings.json?v=" + Date.now(), { cache: "no-store" }),
-    fetch("stats.json?v=" + Date.now(), { cache: "no-store" }),
-  ]);
-  allListings = await listingsResp.json();
-  const stats = await statsResp.json();
-  const localFavs = getLocalFavorites();
-  allListings.forEach((l) => {
-    if (Object.prototype.hasOwnProperty.call(localFavs, l.id)) {
-      l.favorite = !!localFavs[l.id];
-    }
-  });
-  populateZoneFilter(stats.searches);
-  renderMortgageNote(stats);
-  renderTable();
-  document.getElementById("last-update").textContent = stats.last_update
-    ? "Datos al: " + fmtDate(stats.last_update)
-    : "Sin datos aún";
-}
-
-function computeLocalStats(rows) {
-  const priced = rows.filter((l) => l.price);
-  const prices = priced.map((l) => l.price);
-  const ppm2 = priced.filter((l) => l.lot_size).map((l) => l.price / l.lot_size);
-  const sum = (arr) => arr.reduce((a, b) => a + b, 0);
-  const median = (arr) => {
-    if (!arr.length) return 0;
-    const s = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(s.length / 2);
-    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-  };
-  return {
-    total_listings: rows.length,
-    avg_price: prices.length ? sum(prices) / prices.length : 0,
-    median_price: median(prices),
-    min_price: prices.length ? Math.min(...prices) : 0,
-    max_price: prices.length ? Math.max(...prices) : 0,
-    avg_price_per_m2: ppm2.length ? sum(ppm2) / ppm2.length : 0,
-  };
-}
-
-function renderCards(stats) {
-  const cards = [
-    { label: "Publicaciones (con este filtro)", value: stats.total_listings ?? 0 },
-    { label: "Precio promedio", value: money(stats.avg_price) },
-    { label: "Precio mediana", value: money(stats.median_price) },
-    { label: "$/m² promedio", value: stats.avg_price_per_m2 ? money(stats.avg_price_per_m2) : "—" },
-    { label: "Precio mínimo", value: money(stats.min_price) },
-    { label: "Precio máximo", value: money(stats.max_price) },
-  ];
-  document.getElementById("cards").innerHTML = cards
-    .map((c) => `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div></div>`)
-    .join("");
-}
-
-function renderTable() {
-  const zoneFilter = document.getElementById("filter-zone").value;
-  const search = document.getElementById("search").value.trim().toLowerCase();
-  const maxPriceRaw = document.getElementById("filter-max-price").value;
-  const maxPrice = maxPriceRaw ? Number(maxPriceRaw) : null;
-  const verdictFilter = document.getElementById("filter-verdict").value;
-  const sortBy = document.getElementById("sort-by").value;
-  const onlyFavorites = document.getElementById("filter-favorites").checked;
-
-  let rows = allListings.filter((l) => {
-    if (zoneFilter && l.search_key !== zoneFilter) return false;
-    if (search) {
-      const hay = (l.title || "").toLowerCase() + " " + (l.location || "").toLowerCase();
-      if (!hay.includes(search)) return false;
-    }
-    if (maxPrice !== null && (l.price === null || l.price === undefined || l.price > maxPrice)) return false;
-    if (verdictFilter && verdictFilterKey(l.verdict) !== verdictFilter) return false;
-    if (onlyFavorites && !l.favorite) return false;
-    return true;
-  });
-
-  renderCards(computeLocalStats(rows));
-  renderChart(rows);
-
-  const sorters = {
-    first_seen_desc: (a, b) => (b.first_seen || "").localeCompare(a.first_seen || ""),
-    first_seen_asc: (a, b) => (a.first_seen || "").localeCompare(b.first_seen || ""),
-    price_asc: (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity),
-    price_desc: (a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity),
-    ppm2_asc: (a, b) => (a.price_per_m2 ?? Infinity) - (b.price_per_m2 ?? Infinity),
-    vs_avg_asc: (a, b) => (a.vs_avg_price_pct ?? Infinity) - (b.vs_avg_price_pct ?? Infinity),
-    mortgage20_asc: (a, b) =>
-      ((a.mortgage && a.mortgage.monthly_payments_net["20"]) ?? Infinity) -
-      ((b.mortgage && b.mortgage.monthly_payments_net["20"]) ?? Infinity),
-    age_asc: (a, b) => (a.age_years ?? Infinity) - (b.age_years ?? Infinity),
-    favorite_first: (a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0),
-  };
-  rows = rows.sort(sorters[sortBy] || sorters.first_seen_desc);
-
-  document.getElementById("count-note").textContent =
-    `${rows.length} de ${allListings.length} publicaciones`;
-
-  const tbody = document.getElementById("table-body");
-  document.getElementById("empty-state").style.display = allListings.length === 0 ? "block" : "none";
-
-  tbody.innerHTML = rows
-    .map((l) => {
-      const vClass = verdictClass(l.verdict);
-      const vsAvg =
-        l.vs_avg_price_pct === null || l.vs_avg_price_pct === undefined
-          ? '<span class="badge neutral">sin datos</span>'
-          : `<span class="badge ${vClass}">${l.vs_avg_price_pct > 0 ? "+" : ""}${l.vs_avg_price_pct.toFixed(1)}%</span>`;
-      const favClass = l.favorite ? "fav-btn is-fav" : "fav-btn";
-      const favIcon = l.favorite ? "❤️" : "🤍";
-      return `
-        <tr>
-          <td><button class="${favClass}" onclick="toggleFavorite('${l.id}')" title="Guardar como favorita">${favIcon}</button></td>
-          <td class="title-cell">
-            <div class="t" title="${(l.title || "").replace(/"/g, '&quot;')}">${l.title || "(sin título)"}</div>
-            <div class="loc">${l.location || ""}</div>
-            <span class="zone-tag">${l.search_label || ""}</span>
-            ${fmtAlsoIn(l.also_in)}
-          </td>
-          <td class="num">${money(l.price)}</td>
-          <td class="num">${l.lot_size ? Math.round(l.lot_size) : "—"}</td>
-          <td class="num">${l.price_per_m2 ? money(l.price_per_m2) : "—"}</td>
-          <td class="num">${l.bedrooms ?? "—"}</td>
-          <td class="num">${l.bathrooms ?? "—"}</td>
-          <td class="num">${fmtAge(l.age_years)}</td>
-          <td>${fmtPublished(l.first_seen)}</td>
-          <td>${vsAvg}</td>
-          <td class="num">${fmtMortgage(l.mortgage)}</td>
-          <td><a class="link-btn" href="${l.url}" target="_blank" rel="noopener">Ver publicación ↗</a></td>
-        </tr>`;
-    })
-    .join("");
-}
-
-function renderChart(rows) {
-  const priced = rows.filter((l) => l.price);
-  if (priced.length === 0) {
-    if (chartInstance) {
-      chartInstance.destroy();
-      chartInstance = null;
-    }
-    return;
-  }
-
-  const prices = priced.map((l) => l.price);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const bucketCount = 8;
-  const bucketSize = Math.max((max - min) / bucketCount, 1);
-  const buckets = new Array(bucketCount).fill(0);
-
-  prices.forEach((p) => {
-    let idx = Math.floor((p - min) / bucketSize);
-    if (idx >= bucketCount) idx = bucketCount - 1;
-    if (idx < 0) idx = 0;
-    buckets[idx]++;
-  });
-
-  const labels = buckets.map((_, i) => {
-    const lo = min + i * bucketSize;
-    const hi = lo + bucketSize;
-    const fmt = (v) => "$" + Math.round(v / 1000) + "k";
-    return `${fmt(lo)}–${fmt(hi)}`;
-  });
-
-  const styles = getComputedStyle(document.documentElement);
-  const accent = styles.getPropertyValue("--accent").trim();
-  const text = styles.getPropertyValue("--text-muted").trim();
-
-  if (chartInstance) chartInstance.destroy();
-  const ctx = document.getElementById("priceChart").getContext("2d");
-  chartInstance = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [{ label: "Publicaciones", data: buckets, backgroundColor: accent, borderRadius: 4 }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: text, font: { size: 10 } }, grid: { display: false } },
-        y: { ticks: { color: text, precision: 0 }, grid: { color: "rgba(128,128,128,0.15)" } },
-      },
-    },
-  });
-}
-
-loadAll();
+  initApp(fetchData);
 </script>
 </body>
 </html>

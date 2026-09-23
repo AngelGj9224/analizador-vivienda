@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS listings (
     also_in TEXT
 );
 """
+# `favorite` queda en el esquema por compatibilidad con bases de datos
+# viejas, pero ya no lo usa el programa: los favoritos ahora se guardan en
+# Firebase directo desde el navegador (src/static/favorites.js), para que
+# se sincronicen entre dispositivos.
 
 # Si una publicación nueva coincide en zona+precio+m² con una ya activa de
 # OTRA fuente, y sus títulos se parecen al menos esto (0-1), se trata como
@@ -190,15 +194,6 @@ class Storage:
         )
         self.conn.commit()
         return len(to_deactivate)
-
-    def set_favorite(self, listing_id: str, favorite: bool) -> bool:
-        """Marca/desmarca una publicación como favorita. Devuelve False si
-        el id no existe."""
-        cur = self.conn.execute(
-            "UPDATE listings SET favorite=? WHERE id=?", (1 if favorite else 0, listing_id)
-        )
-        self.conn.commit()
-        return cur.rowcount > 0
 
     def get_active_listings(self) -> List[ListingRecord]:
         cur = self.conn.cursor()

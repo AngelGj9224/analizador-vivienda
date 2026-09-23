@@ -64,14 +64,16 @@ sitio (no se pueden adivinar, algunos usan ids numéricos de ubicación).
   explícitamente (p. ej. "11 años de antigüedad") — el resumen de la
   búsqueda no siempre trae ese dato, así que muchas publicaciones van a
   mostrar "—" ahí; no significa que sean nuevas, es que no se pudo leer.
-- Puedes marcar publicaciones como **favoritas** (❤️) y filtrar para ver
-  solo esas. En el panel local se guardan en `data/listings.db` (quedan
-  ahí aunque cierres y vuelvas a abrir); en la versión de GitHub Pages se
-  guardan en el navegador de ese dispositivo (`localStorage`), porque esa
-  versión no tiene un servidor donde guardarlas — no se sincronizan entre
-  tu PC y tu celular.
-- El panel solo lee esa base de datos — no se conecta a internet más que
-  para cargar el estilo/gráfica del panel mismo.
+- Puedes marcar publicaciones como **favoritas** (❤️) — tienen su propia
+  pestaña aparte ("❤️ Favoritas") para verlas solas. Se guardan en
+  Firebase (una base de datos gratis en la nube) y **se sincronizan entre
+  tu PC y tu celular** — marca una en el panel local y aparece también en
+  GitHub Pages, y viceversa. Ver [Favoritos sincronizados](#favoritos-sincronizados-firebase)
+  más abajo para configurarlo (toma 5 minutos). Mientras no lo configures,
+  los favoritos igual funcionan, pero solo en el navegador donde los
+  marques.
+- El panel solo lee la base de datos y Firebase — no se conecta a internet
+  más que para eso y para cargar el estilo/gráfica (CDN).
 
 ## Instalación
 
@@ -111,16 +113,18 @@ python -m src.dashboard
 O doble clic en [`abrir_panel.bat`](abrir_panel.bat). Se abre tu
 navegador en `http://127.0.0.1:5050` con:
 
+- Pestañas **"Todas"** / **"❤️ Favoritas"** arriba de todo.
 - Tarjetas resumen (total de publicaciones, precio promedio/mediana,
   $/m² promedio, mínimo y máximo) que se recalculan según los filtros que
   tengas activos.
 - Filtro de zona, buscador por colonia/título, **precio máximo**, filtro
-  por veredicto, filtro de **solo favoritas** (❤️), y varios órdenes
-  (precio, $/m², más baratas vs. el promedio, mensualidad, antigüedad,
-  favoritas primero).
+  por veredicto, y varios órdenes (precio, $/m², más baratas vs. el
+  promedio, mensualidad, antigüedad).
 - Un botón "Ver publicación" en cada fila que abre el anuncio original.
 - Una gráfica de distribución de precios, también según los filtros
   activos.
+- En el celular (o ventana angosta), la tabla se convierte en tarjetas
+  apiladas en vez de una tabla apretada horizontal.
 
 Puedes dejar el panel abierto y solo darle "↻ Actualizar" después de
 correr una nueva búsqueda.
@@ -145,7 +149,7 @@ actualizas cuando quieras desde tu PC.
 
 ```bash
 python -m src.main        # 1. buscar (opcional si ya buscaste hace poco)
-python -m src.publish     # 2. genera docs/index.html, listings.json y stats.json
+python -m src.publish     # 2. genera docs/index.html, listings.json, stats.json y copia app.css/app.js/favorites.js
 git add docs/
 git commit -m "Actualiza publicaciones"
 git push
@@ -159,6 +163,48 @@ misma URL.
 pública — cualquiera con el link la puede ver (aunque no aparece en
 buscadores ni es fácil de adivinar). Ya que son datos de casas en venta
 públicas, no debería ser un problema, pero tenlo presente.
+
+## Favoritos sincronizados (Firebase)
+
+Las ❤️ favoritas se guardan en [Firestore](https://firebase.google.com/products/firestore)
+(la base de datos de Firebase), gratis, para que se vean igual en tu PC y
+en tu celular. Configúralo una sola vez:
+
+1. Entra a [console.firebase.google.com](https://console.firebase.google.com)
+   con tu cuenta de Google → **"Agregar proyecto"**. Ponle un nombre (p. ej.
+   `analizador-vivienda`); puedes desactivar Google Analytics, no se usa.
+2. Menú izquierdo → **Compilación → Firestore Database → Crear base de
+   datos**. Modo **producción**, la región más cercana.
+3. Pestaña **Reglas** de Firestore → borra lo que haya y pega esto →
+   **Publicar**:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /favorites/{docId} { allow read, write: if true; }
+     }
+   }
+   ```
+   (Esto deja lectura/escritura abierta solo para la colección
+   `favorites` — cualquiera con el link de tu app podría, en teoría, ver o
+   tocar tu lista de favoritos, pero no el resto de tus datos. Para este
+   uso — una lista personal de casas que te gustaron — es un riesgo bajo;
+   si más adelante quieres cerrarlo más, se puede agregar Firebase
+   Authentication.)
+4. Engrane ⚙️ (junto a "Descripción general del proyecto") → **Configuración
+   del proyecto** → abajo en "Tus apps" → ícono **`</>`** (Web) → dale un
+   apodo → **Registrar app** (no hace falta Firebase Hosting).
+5. Copia el bloque `const firebaseConfig = {...}` que te muestra, y pega
+   esos mismos valores en [`src/static/firebase_config.js`](src/static/firebase_config.js),
+   reemplazando los que dicen `"TU_..."`.
+6. Vuelve a publicar para que la versión de GitHub Pages también los
+   tenga: `python -m src.publish`, luego `git add`, `commit`, `push` (o
+   corre `actualizar_y_publicar.bat`).
+
+Mientras `firebase_config.js` tenga los valores de ejemplo, los favoritos
+funcionan igual pero solo se guardan en el navegador donde los marcas
+(sin sincronizar) — el panel te avisa esto abajo de la tabla ("Favoritos
+guardados solo en este dispositivo").
 
 ## Mensualidad estimada (crédito Infonavit)
 
@@ -221,8 +267,13 @@ src/
   mortgage.py              cálculo de mensualidad estimada (crédito Infonavit)
   searches.py              lista de zonas/búsquedas que se revisan
   templates/
-    dashboard.html         interfaz del panel local
-    dashboard_static.html   interfaz de la versión publicada en GitHub Pages
+    dashboard.html         página del panel local (delgada, usa static/)
+    dashboard_static.html   página de la versión publicada en GitHub Pages
+  static/
+    app.css                  estilos compartidos por las dos páginas
+    app.js                    lógica del panel (filtros, tabla, gráfica) compartida
+    favorites.js               favoritos vía Firebase (con fallback a localStorage)
+    firebase_config.js          tu configuración de Firebase (edítala tú)
   config.py              configuración (lee .env)
   storage.py              base de datos SQLite (data/listings.db)
   analysis.py             cálculo de estadísticas y comparación

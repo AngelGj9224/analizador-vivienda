@@ -54,7 +54,6 @@ def listings_payload(storage: Storage) -> list:
                 "vs_avg_ppm2_pct": comparison["vs_avg_ppm2_pct"],
                 "verdict": comparison["verdict"],
                 "mortgage": mortgage.estimate(l.price),
-                "favorite": bool(l.favorite),
                 "also_in": [s for s in (l.also_in or "").split(",") if s],
             }
         )
