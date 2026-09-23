@@ -10,7 +10,7 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 from .export_data import listings_payload, stats_payload
 from .storage import Storage
@@ -42,6 +42,19 @@ def api_stats():
     storage = Storage()
     try:
         return jsonify(stats_payload(storage))
+    finally:
+        storage.close()
+
+
+@app.route("/api/favorite/<listing_id>", methods=["POST"])
+def api_favorite(listing_id):
+    favorite = bool((request.get_json(silent=True) or {}).get("favorite", True))
+    storage = Storage()
+    try:
+        ok = storage.set_favorite(listing_id, favorite)
+        if not ok:
+            return jsonify({"error": "no existe esa publicación"}), 404
+        return jsonify({"id": listing_id, "favorite": favorite})
     finally:
         storage.close()
 

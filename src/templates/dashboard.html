@@ -145,6 +145,34 @@
     background: var(--neutral-bg);
     color: var(--text-muted);
   }
+  .also-in {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.66rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .fav-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.05rem;
+    line-height: 1;
+    padding: 2px;
+    opacity: 0.55;
+  }
+  .fav-btn:hover { opacity: 1; }
+  .fav-btn.is-fav { opacity: 1; }
+  .fav-filter-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
   .num { text-align: right; white-space: nowrap; }
   .badge {
     display: inline-block;
@@ -224,7 +252,13 @@
         <option value="ppm2_asc">$/m²: menor a mayor</option>
         <option value="vs_avg_asc">Más baratas vs. promedio</option>
         <option value="mortgage20_asc">Mensualidad (20a): menor a mayor</option>
+        <option value="age_asc">Más nuevas (menos antigüedad)</option>
+        <option value="favorite_first">Favoritas primero</option>
       </select>
+      <label class="fav-filter-label">
+        <input type="checkbox" id="filter-favorites" onchange="renderTable()" />
+        ❤️ Solo favoritas
+      </label>
     </div>
     <div class="count-note" id="count-note"></div>
     <div id="mortgage-note" class="assumptions-note"></div>
@@ -232,12 +266,14 @@
       <table>
         <thead>
           <tr>
+            <th></th>
             <th>Publicación</th>
             <th class="num">Precio</th>
             <th class="num">m²</th>
             <th class="num">$/m²</th>
             <th class="num">Rec.</th>
             <th class="num">Baños</th>
+            <th class="num" title="Extraída del texto de la publicación cuando la menciona; no siempre está disponible">Antigüedad</th>
             <th title="Fecha en que el monitor detectó esta publicación por primera vez">Publicada</th>
             <th>vs. promedio</th>
             <th class="num" title="Ya descuenta la aportación patronal; ver supuestos abajo de los filtros">Mensualidad neta (Infonavit)</th>
@@ -291,6 +327,19 @@ function fmtPublished(iso) {
   if (days === null) return dateStr;
   const daysLabel = days === 0 ? "hoy" : days === 1 ? "hace 1 día" : `hace ${days} días`;
   return `${dateStr}<br><span style="color:var(--text-muted); font-size:0.72rem;">${daysLabel}</span>`;
+}
+
+function fmtAge(years) {
+  if (years === null || years === undefined) return "—";
+  return years === 0 ? "Nueva" : `${years} años`;
+}
+
+const SOURCE_LABELS = { inmuebles24: "Inmuebles24", vivanuncios: "Vivanuncios" };
+
+function fmtAlsoIn(alsoIn) {
+  if (!alsoIn || alsoIn.length === 0) return "";
+  const names = alsoIn.map((s) => SOURCE_LABELS[s] || s).join(", ");
+  return `<span class="also-in">también en ${names}</span>`;
 }
 
 function fmtMortgage(m) {
@@ -370,6 +419,25 @@ async function loadAll() {
     : "Sin datos aún";
 }
 
+async function toggleFavorite(id) {
+  const listing = allListings.find((l) => l.id === id);
+  if (!listing) return;
+  const newValue = !listing.favorite;
+  listing.favorite = newValue; // optimista, para que se sienta instantáneo
+  renderTable();
+  try {
+    const resp = await fetch(`/api/favorite/${encodeURIComponent(id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorite: newValue }),
+    });
+    if (!resp.ok) throw new Error("respuesta no ok");
+  } catch (e) {
+    listing.favorite = !newValue; // revertir si falló
+    renderTable();
+  }
+}
+
 function computeLocalStats(rows) {
   const priced = rows.filter((l) => l.price);
   const prices = priced.map((l) => l.price);
@@ -412,6 +480,7 @@ function renderTable() {
   const maxPrice = maxPriceRaw ? Number(maxPriceRaw) : null;
   const verdictFilter = document.getElementById("filter-verdict").value;
   const sortBy = document.getElementById("sort-by").value;
+  const onlyFavorites = document.getElementById("filter-favorites").checked;
 
   let rows = allListings.filter((l) => {
     if (zoneFilter && l.search_key !== zoneFilter) return false;
@@ -421,6 +490,7 @@ function renderTable() {
     }
     if (maxPrice !== null && (l.price === null || l.price === undefined || l.price > maxPrice)) return false;
     if (verdictFilter && verdictFilterKey(l.verdict) !== verdictFilter) return false;
+    if (onlyFavorites && !l.favorite) return false;
     return true;
   });
 
@@ -437,6 +507,8 @@ function renderTable() {
     mortgage20_asc: (a, b) =>
       ((a.mortgage && a.mortgage.monthly_payments_net["20"]) ?? Infinity) -
       ((b.mortgage && b.mortgage.monthly_payments_net["20"]) ?? Infinity),
+    age_asc: (a, b) => (a.age_years ?? Infinity) - (b.age_years ?? Infinity),
+    favorite_first: (a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0),
   };
   rows = rows.sort(sorters[sortBy] || sorters.first_seen_desc);
 
@@ -453,18 +525,23 @@ function renderTable() {
         l.vs_avg_price_pct === null || l.vs_avg_price_pct === undefined
           ? '<span class="badge neutral">sin datos</span>'
           : `<span class="badge ${vClass}">${l.vs_avg_price_pct > 0 ? "+" : ""}${l.vs_avg_price_pct.toFixed(1)}%</span>`;
+      const favClass = l.favorite ? "fav-btn is-fav" : "fav-btn";
+      const favIcon = l.favorite ? "❤️" : "🤍";
       return `
         <tr>
+          <td><button class="${favClass}" onclick="toggleFavorite('${l.id}')" title="Guardar como favorita">${favIcon}</button></td>
           <td class="title-cell">
             <div class="t" title="${(l.title || "").replace(/"/g, '&quot;')}">${l.title || "(sin título)"}</div>
             <div class="loc">${l.location || ""}</div>
             <span class="zone-tag">${l.search_label || ""}</span>
+            ${fmtAlsoIn(l.also_in)}
           </td>
           <td class="num">${money(l.price)}</td>
           <td class="num">${l.lot_size ? Math.round(l.lot_size) : "—"}</td>
           <td class="num">${l.price_per_m2 ? money(l.price_per_m2) : "—"}</td>
           <td class="num">${l.bedrooms ?? "—"}</td>
           <td class="num">${l.bathrooms ?? "—"}</td>
+          <td class="num">${fmtAge(l.age_years)}</td>
           <td>${fmtPublished(l.first_seen)}</td>
           <td>${vsAvg}</td>
           <td class="num">${fmtMortgage(l.mortgage)}</td>

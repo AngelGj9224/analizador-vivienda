@@ -1,3 +1,4 @@
+import difflib
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -26,9 +27,18 @@ CREATE TABLE IF NOT EXISTS listings (
     last_seen TEXT,
     active INTEGER DEFAULT 1,
     search_key TEXT,
-    search_label TEXT
+    search_label TEXT,
+    age_years INTEGER,
+    favorite INTEGER DEFAULT 0,
+    also_in TEXT
 );
 """
+
+# Si una publicación nueva coincide en zona+precio+m² con una ya activa de
+# OTRA fuente, y sus títulos se parecen al menos esto (0-1), se trata como
+# la misma propiedad anunciada en dos sitios (muy común) en vez de crear
+# una fila duplicada.
+_DUP_TITLE_SIMILARITY = 0.55
 
 # Antes de que el programa buscara en varias zonas, todo lo guardado era
 # de esta búsqueda. Se usa solo para rellenar registros viejos que no
@@ -56,6 +66,9 @@ class ListingRecord:
     active: int = 1
     search_key: str = _LEGACY_SEARCH_KEY
     search_label: str = _LEGACY_SEARCH_LABEL
+    age_years: Optional[int] = None
+    favorite: int = 0
+    also_in: Optional[str] = None
 
 
 class Storage:
@@ -77,12 +90,46 @@ class Storage:
                 "UPDATE listings SET search_key=?, search_label=? WHERE search_key IS NULL",
                 (_LEGACY_SEARCH_KEY, _LEGACY_SEARCH_LABEL),
             )
+        if "age_years" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN age_years INTEGER")
+        if "favorite" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN favorite INTEGER DEFAULT 0")
+        if "also_in" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN also_in TEXT")
         self.conn.commit()
+
+    def _find_cross_source_duplicate(self, l: Listing):
+        """Busca una publicación ya activa, de OTRA fuente, en la misma
+        zona, con el mismo precio y los mismos m² — y título parecido —
+        que probablemente sea la misma propiedad anunciada en dos sitios
+        (agencias que publican en Inmuebles24 y Vivanuncios a la vez es
+        muy común). Devuelve la fila existente o None."""
+        if not l.price or not l.lot_size:
+            return None
+        cur = self.conn.execute(
+            """SELECT * FROM listings
+               WHERE search_key=? AND price=? AND lot_size=? AND active=1 AND source != ?""",
+            (l.search_key, l.price, l.lot_size, l.source),
+        )
+        for row in cur.fetchall():
+            existing_title = (row["title"] or "").strip().lower()[:200]
+            new_title = (l.title or "").strip().lower()[:200]
+            if not existing_title or not new_title:
+                continue
+            ratio = difflib.SequenceMatcher(None, existing_title, new_title).ratio()
+            if ratio >= _DUP_TITLE_SIMILARITY:
+                return row
+        return None
 
     def upsert_listings(self, listings: List[Listing]) -> List[str]:
         """Inserta publicaciones nuevas y actualiza precio/último-visto en las
-        existentes (reactivándolas si habían sido dadas de baja). Devuelve la
-        lista de ids que son nuevos (no existían antes)."""
+        existentes (reactivándolas si habían sido dadas de baja). Si una
+        publicación nueva parece ser la misma propiedad que ya está guardada
+        pero anunciada en otra fuente, no crea una fila aparte — solo anota
+        en `also_in` que también aparece ahí y refresca `last_seen`.
+        Devuelve la lista de ids que son genuinamente nuevos (no existían
+        antes, ni como duplicado). No toca `favorite` de las que ya
+        existían — es una marca tuya, no algo que venga del scraper."""
         now = datetime.now(timezone.utc).isoformat()
         new_ids: List[str] = []
         cur = self.conn.cursor()
@@ -92,32 +139,44 @@ class Storage:
             if exists:
                 cur.execute(
                     """UPDATE listings
-                       SET last_seen=?, price=?, title=?, active=1, search_key=?, search_label=?
+                       SET last_seen=?, price=?, title=?, active=1, search_key=?, search_label=?,
+                           age_years=?
                        WHERE id=?""",
-                    (now, l.price, l.title, l.search_key, l.search_label, l.id),
+                    (now, l.price, l.title, l.search_key, l.search_label, l.age_years, l.id),
                 )
-            else:
+                continue
+
+            dup = self._find_cross_source_duplicate(l)
+            if dup is not None:
+                also_in = set(filter(None, (dup["also_in"] or "").split(",")))
+                also_in.add(l.source)
                 cur.execute(
-                    """INSERT INTO listings
-                        (id, source, title, url, price, currency, maintenance, lot_size,
-                         bedrooms, bathrooms, parking, location, first_seen, last_seen, active,
-                         search_key, search_label)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
-                    (
-                        l.id, l.source, l.title, l.url, l.price, l.currency, l.maintenance,
-                        l.lot_size, l.bedrooms, l.bathrooms, l.parking, l.location, now, now,
-                        l.search_key, l.search_label,
-                    ),
+                    "UPDATE listings SET last_seen=?, active=1, also_in=? WHERE id=?",
+                    (now, ",".join(sorted(also_in)), dup["id"]),
                 )
-                new_ids.append(l.id)
+                continue
+
+            cur.execute(
+                """INSERT INTO listings
+                    (id, source, title, url, price, currency, maintenance, lot_size,
+                     bedrooms, bathrooms, parking, location, first_seen, last_seen, active,
+                     search_key, search_label, age_years, favorite)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,0)""",
+                (
+                    l.id, l.source, l.title, l.url, l.price, l.currency, l.maintenance,
+                    l.lot_size, l.bedrooms, l.bathrooms, l.parking, l.location, now, now,
+                    l.search_key, l.search_label, l.age_years,
+                ),
+            )
+            new_ids.append(l.id)
         self.conn.commit()
         return new_ids
 
     def deactivate_missing(self, current_ids, source: str, search_key: str) -> int:
         """Marca como inactivas (ya no disponibles) las publicaciones de esta
         `source`+`search_key` que estaban activas pero no vinieron en
-        `current_ids` (la búsqueda más reciente de esa zona). No las borra,
-        solo deja de mostrarlas."""
+        `current_ids` (la búsqueda más reciente de esa zona/fuente). No las
+        borra, solo deja de mostrarlas."""
         cur = self.conn.execute(
             "SELECT id FROM listings WHERE source=? AND search_key=? AND active=1",
             (source, search_key),
@@ -131,6 +190,15 @@ class Storage:
         )
         self.conn.commit()
         return len(to_deactivate)
+
+    def set_favorite(self, listing_id: str, favorite: bool) -> bool:
+        """Marca/desmarca una publicación como favorita. Devuelve False si
+        el id no existe."""
+        cur = self.conn.execute(
+            "UPDATE listings SET favorite=? WHERE id=?", (1 if favorite else 0, listing_id)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def get_active_listings(self) -> List[ListingRecord]:
         cur = self.conn.cursor()

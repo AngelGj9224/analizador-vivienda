@@ -1,54 +1,75 @@
 # Analizador de Vivienda
 
-Busca publicaciones en Inmuebles24 en varias zonas **cuando tú lo mandas
-llamar**, guarda lo que encuentra, y lo muestra en un panel con el
-detalle de cada publicación, comparado contra el resto de su misma zona
-(precio, precio por m², etc.) y con el link directo a cada anuncio.
+Busca publicaciones en Inmuebles24 y Vivanuncios, en varias zonas,
+**cuando tú lo mandas llamar**, guarda lo que encuentra, y lo muestra en
+un panel con el detalle de cada publicación, comparado contra el resto de
+su misma zona (precio, precio por m², etc.) y con el link directo a cada
+anuncio.
 
 No corre en segundo plano ni manda notificaciones a ningún lado: es
 buscar → guardar → revisar en el panel, cuando tú quieras.
 
-## Zonas que revisa
+## Zonas y fuentes que revisa
 
-Configuradas en [`src/searches.py`](src/searches.py):
+Configuradas en [`src/searches.py`](src/searches.py) — cada zona se busca
+en **dos sitios**:
 
-- Casas en venta — San Mateo Atenco
-- Casas en venta — Metepec
-- Departamentos en venta — Benito Juárez, CDMX
+- Casas en venta — San Mateo Atenco (Inmuebles24 + Vivanuncios)
+- Casas en venta — Metepec (Inmuebles24 + Vivanuncios)
+- Departamentos en venta — Benito Juárez, CDMX (Inmuebles24 + Vivanuncios)
 
 El panel trae un **filtro de zona** para ver cada una por separado (o
 todas juntas). Las estadísticas de precio ("vs. promedio", tarjetas
-resumen, gráfica) siempre se calculan **dentro de la zona filtrada** —
-nunca se mezcla el precio de un departamento en CDMX contra el de una
-casa en Metepec.
+resumen, gráfica) siempre se calculan **dentro de la zona filtrada**,
+combinando ambas fuentes — nunca se mezcla el precio de un departamento
+en CDMX contra el de una casa en Metepec.
 
-Para agregar otra zona/búsqueda, edita `src/searches.py` — el comentario
-de ahí explica cómo confirmar que la URL existe antes de agregarla.
+Muchas propiedades se anuncian en los dos sitios a la vez (la misma
+agencia publica en ambos). El programa detecta esto (mismo precio, mismos
+m² y título parecido, en la misma zona) y no la muestra dos veces — la
+fila trae una nota "también en Vivanuncios/Inmuebles24" cuando aplica.
+
+Para agregar otra zona o fuente, edita `src/searches.py` — el comentario
+de ahí explica cómo conseguir los datos correctos usando el buscador del
+sitio (no se pueden adivinar, algunos usan ids numéricos de ubicación).
 
 ## Qué hace y qué no
 
-- **Fuente de datos:** por ahora solo [Inmuebles24](https://www.inmuebles24.com),
-  que es donde probé y confirmé que la búsqueda funciona de forma estable.
-  Intenté también con Vivanuncios, Lamudi y Trovit/Mitula, pero sus sistemas
-  anti-bot (Cloudflare y similares) bloquearon el acceso automatizado. Si
-  más adelante quieres que agregue alguno, dímelo.
-- Cada vez que corres la búsqueda, revisa las 3 zonas de arriba y guarda
-  las publicaciones que sean nuevas (las que ya tenía las deja igual) en
-  `data/listings.db`.
-- También revisa, **zona por zona**, cuáles de las que ya tenías
+- **Fuentes de datos:** [Inmuebles24](https://www.inmuebles24.com) y
+  [Vivanuncios](https://www.vivanuncios.com.mx) — ambos corren sobre la
+  misma plataforma (Navent), así que comparten el mismo scraper
+  (`src/scrapers/navent_common.py`). También intenté Lamudi y
+  Trovit/Mitula, pero sus sistemas anti-bot (Cloudflare y similares)
+  bloquearon el acceso automatizado. Si más adelante quieres que agregue
+  otro sitio con la misma plataforma, es rápido de sumar; uno distinto
+  necesitaría investigar su HTML desde cero.
+- Cada vez que corres la búsqueda, revisa las 3 zonas × 2 fuentes de
+  arriba (6 búsquedas) y guarda las publicaciones que sean nuevas (las
+  que ya tenía las deja igual) en `data/listings.db`.
+- También revisa, **por zona y por fuente**, cuáles de las que ya tenías
   guardadas **ya no aparecen** en el sitio (se vendieron, las quitaron,
   etc.) y las quita del panel — no las borra de la base, solo deja de
-  mostrarlas. Por seguridad, esto **solo pasa si la búsqueda de esa zona
-  alcanzó a leer casi todas las páginas** que el sitio reporta tener. San
-  Mateo Atenco normalmente se cubre completa (~70-80 publicaciones);
-  Metepec (~385) y Benito Juárez (~3,500) son zonas mucho más grandes que
-  lo que se revisa en cada corrida (`MAX_PAGES`), así que ahí el programa
-  **nunca** las da de baja automáticamente por ahora — solo va agregando
-  las que encuentra. Si quieres cobertura más completa en esas zonas,
-  sube `MAX_PAGES` en `.env` (cada página extra tarda unos segundos más
-  por el anti-bot del sitio).
+  mostrarlas. Por seguridad, esto **solo pasa si esa búsqueda alcanzó a
+  leer casi todas las páginas** que el sitio reporta tener. San Mateo
+  Atenco normalmente se cubre completa; Metepec y Benito Juárez son zonas
+  mucho más grandes que lo que se revisa en cada corrida (`MAX_PAGES`),
+  así que ahí el programa **nunca** las da de baja automáticamente por
+  ahora — solo va agregando las que encuentra. Si quieres cobertura más
+  completa, sube `MAX_PAGES` en `.env` (cada página extra tarda unos
+  segundos más por el anti-bot del sitio, y ahora son 6 búsquedas por
+  corrida en vez de 3).
 - El panel muestra, para cada publicación, la fecha en que el programa la
-  detectó por primera vez y hace cuántos días fue ("Publicada").
+  detectó por primera vez y hace cuántos días fue ("Publicada"), y la
+  **antigüedad** de la construcción cuando el anuncio la menciona
+  explícitamente (p. ej. "11 años de antigüedad") — el resumen de la
+  búsqueda no siempre trae ese dato, así que muchas publicaciones van a
+  mostrar "—" ahí; no significa que sean nuevas, es que no se pudo leer.
+- Puedes marcar publicaciones como **favoritas** (❤️) y filtrar para ver
+  solo esas. En el panel local se guardan en `data/listings.db` (quedan
+  ahí aunque cierres y vuelvas a abrir); en la versión de GitHub Pages se
+  guardan en el navegador de ese dispositivo (`localStorage`), porque esa
+  versión no tiene un servidor donde guardarlas — no se sincronizan entre
+  tu PC y tu celular.
 - El panel solo lee esa base de datos — no se conecta a internet más que
   para cargar el estilo/gráfica del panel mismo.
 
@@ -94,8 +115,9 @@ navegador en `http://127.0.0.1:5050` con:
   $/m² promedio, mínimo y máximo) que se recalculan según los filtros que
   tengas activos.
 - Filtro de zona, buscador por colonia/título, **precio máximo**, filtro
-  por veredicto, y varios órdenes (precio, $/m², más baratas vs. el
-  promedio, mensualidad).
+  por veredicto, filtro de **solo favoritas** (❤️), y varios órdenes
+  (precio, $/m², más baratas vs. el promedio, mensualidad, antigüedad,
+  favoritas primero).
 - Un botón "Ver publicación" en cada fila que abre el anuncio original.
 - Una gráfica de distribución de precios, también según los filtros
   activos.
@@ -205,7 +227,9 @@ src/
   storage.py              base de datos SQLite (data/listings.db)
   analysis.py             cálculo de estadísticas y comparación
   scrapers/
-    inmuebles24.py         scraper de Inmuebles24
+    navent_common.py        lógica compartida (parseo, paginación anti-bot)
+    inmuebles24.py           arma URLs de Inmuebles24
+    vivanuncios.py           arma URLs de Vivanuncios
 docs/                     versión estática generada (esto es lo que ve GitHub Pages)
 buscar_casas.bat         doble clic para buscar (desde el Explorador)
 abrir_panel.bat          doble clic para abrir el panel (desde el Explorador)
@@ -215,7 +239,11 @@ abrir_panel.bat          doble clic para abrir el panel (desde el Explorador)
 
 - Estos sitios cambian su HTML de vez en cuando; si el programa deja de
   encontrar resultados, probablemente hay que actualizar los selectores en
-  `src/scrapers/inmuebles24.py`.
+  `src/scrapers/navent_common.py` (le pega a ambos sitios porque comparten
+  la misma plataforma).
+- La antigüedad y la detección de duplicados dependen de que el texto de
+  la publicación la mencione o de que coincidan precio+m²+título — son
+  heurísticas, no datos garantizados por el sitio.
 - Si `SCRAPER_HEADLESS=true` empieza a devolver 0 resultados de forma
   consistente, prueba poniéndolo en `false` en `.env` para ver qué está
   pasando (se abrirá una ventana de Chromium visible).

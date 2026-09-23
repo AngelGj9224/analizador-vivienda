@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from . import mortgage
 from .analysis import compare_listing, compute_market_stats
-from .searches import SEARCHES
+from .searches import ZONES
 from .storage import Storage
 
 
@@ -44,6 +44,7 @@ def listings_payload(storage: Storage) -> list:
                 "bathrooms": l.bathrooms,
                 "parking": l.parking,
                 "location": l.location,
+                "age_years": l.age_years,
                 "first_seen": l.first_seen,
                 "last_seen": l.last_seen,
                 "price_per_m2": price_per_m2,
@@ -53,6 +54,8 @@ def listings_payload(storage: Storage) -> list:
                 "vs_avg_ppm2_pct": comparison["vs_avg_ppm2_pct"],
                 "verdict": comparison["verdict"],
                 "mortgage": mortgage.estimate(l.price),
+                "favorite": bool(l.favorite),
+                "also_in": [s for s in (l.also_in or "").split(",") if s],
             }
         )
     return data
@@ -67,8 +70,8 @@ def stats_payload(storage: Storage) -> dict:
     for l in listings:
         counts_by_key[l.search_key] += 1
     searches = [
-        {"key": s["key"], "label": s["label"], "count": counts_by_key.get(s["key"], 0)}
-        for s in SEARCHES
+        {"key": z["key"], "label": z["label"], "count": counts_by_key.get(z["key"], 0)}
+        for z in ZONES
     ]
 
     return {

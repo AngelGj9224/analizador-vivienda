@@ -18,5 +18,6 @@ class Listing:
     bathrooms: Optional[float]
     parking: Optional[int]
     location: str
+    age_years: Optional[int]
     search_key: str
     search_label: str
