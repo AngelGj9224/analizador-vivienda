@@ -1,5 +1,7 @@
 """
-Scraper de Inmuebles24 para casas en venta en San Mateo Atenco.
+Scraper de Inmuebles24, reutilizable para cualquier búsqueda del sitio
+(casas, departamentos, distintas ciudades) — ver src/searches.py para la
+lista de zonas configuradas.
 
 Los selectores usan los atributos `data-qa` que el propio sitio usa para
 sus pruebas automatizadas (más estables que las clases CSS, que cambian
@@ -19,7 +21,6 @@ from .base import Listing
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.inmuebles24.com"
-SEARCH_SLUG = "casas-en-venta-en-san-mateo-atenco"
 SOURCE = "inmuebles24"
 
 USER_AGENT = (
@@ -75,7 +76,7 @@ def _text_or_none(card, selector: str) -> Optional[str]:
     return el.inner_text() if el else None
 
 
-def _extract_cards(page: Page) -> List[Listing]:
+def _extract_cards(page: Page, search_key: str, search_label: str) -> List[Listing]:
     cards = page.query_selector_all('div[data-qa="posting PROPERTY"]')
     listings: List[Listing] = []
 
@@ -107,6 +108,8 @@ def _extract_cards(page: Page) -> List[Listing]:
                     bathrooms=features["bathrooms"],
                     parking=features["parking"],
                     location=location,
+                    search_key=search_key,
+                    search_label=search_label,
                 )
             )
         except Exception as e:
@@ -115,16 +118,19 @@ def _extract_cards(page: Page) -> List[Listing]:
     return listings
 
 
-def _page_url(page_num: int) -> str:
+def _page_url(slug: str, page_num: int) -> str:
     suffix = "" if page_num == 1 else f"-pagina-{page_num}"
-    return f"{BASE_URL}/{SEARCH_SLUG}{suffix}.html"
+    return f"{BASE_URL}/{slug}{suffix}.html"
 
 
 _TITLE_COUNT_RE = re.compile(r"^\s*([\d,]+)\s")
 
 
-def scrape(max_pages: int = 3, headless: bool = True):
-    """Recorre los resultados de Inmuebles24 para San Mateo Atenco.
+def scrape(slug: str, search_key: str, search_label: str, max_pages: int = 3, headless: bool = True):
+    """Recorre los resultados de Inmuebles24 para la búsqueda `slug`
+    (p. ej. "casas-en-venta-en-metepec"), etiquetando cada publicación con
+    `search_key`/`search_label` para poder filtrarlas y compararlas por
+    separado en el panel.
 
     Importante: Cloudflare (la protección anti-bots del sitio) bloquea la
     sesión en cuanto detecta una SEGUNDA navegación dentro del mismo
@@ -146,7 +152,7 @@ def scrape(max_pages: int = 3, headless: bool = True):
 
     with sync_playwright() as p:
         for page_num in range(1, max_pages + 1):
-            url = _page_url(page_num)
+            url = _page_url(slug, page_num)
             browser = p.chromium.launch(headless=headless)
             try:
                 context = browser.new_context(user_agent=USER_AGENT, locale="es-MX")
@@ -166,7 +172,7 @@ def scrape(max_pages: int = 3, headless: bool = True):
                         except ValueError:
                             reported_total = None
 
-                listings = _extract_cards(page)
+                listings = _extract_cards(page, search_key, search_label)
                 if not listings:
                     break
                 all_listings.extend(listings)

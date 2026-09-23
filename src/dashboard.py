@@ -12,7 +12,6 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template
 
-from . import config
 from .export_data import listings_payload, stats_payload
 from .storage import Storage
 
@@ -26,7 +25,7 @@ PORT = 5050
 
 @app.route("/")
 def index():
-    return render_template("dashboard.html", ciudad=config.CIUDAD)
+    return render_template("dashboard.html")
 
 
 @app.route("/api/listings")

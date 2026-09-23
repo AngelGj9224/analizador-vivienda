@@ -12,7 +12,6 @@ import json
 import logging
 from pathlib import Path
 
-from . import config
 from .export_data import listings_payload, stats_payload
 from .storage import Storage
 
@@ -40,7 +39,7 @@ def publish():
         json.dumps(stats, ensure_ascii=False), encoding="utf-8"
     )
 
-    html = TEMPLATE_PATH.read_text(encoding="utf-8").replace("{{ ciudad }}", config.CIUDAD)
+    html = TEMPLATE_PATH.read_text(encoding="utf-8")
     (DOCS_DIR / "index.html").write_text(html, encoding="utf-8")
 
     logger.info("Listo: %d publicaciones exportadas a %s", len(listings), DOCS_DIR)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Analizador de Vivienda — {{ ciudad }}</title>
+<title>Analizador de Vivienda</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   :root {
@@ -135,6 +135,15 @@
   .title-cell { max-width: 260px; }
   .title-cell .t { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .title-cell .loc { color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+  .zone-tag {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 0.66rem;
+    background: var(--neutral-bg);
+    color: var(--text-muted);
+  }
   .num { text-align: right; white-space: nowrap; }
   .badge {
     display: inline-block;
@@ -181,8 +190,8 @@
 
 <header>
   <div>
-    <h1>🏠 Analizador de Vivienda — {{ ciudad }}</h1>
-    <div class="subtitle">Publicaciones guardadas automáticamente, comparadas contra el resto de la zona</div>
+    <h1>🏠 Analizador de Vivienda</h1>
+    <div class="subtitle">Publicaciones guardadas automáticamente, comparadas contra el resto de su misma zona/búsqueda</div>
   </div>
   <div style="display:flex; align-items:center; gap:12px;">
     <span id="last-update">—</span>
@@ -195,6 +204,9 @@
 <div class="layout">
   <div class="panel">
     <div class="filters">
+      <select id="filter-zone" onchange="renderTable()">
+        <option value="">Todas las zonas</option>
+      </select>
       <input type="text" id="search" placeholder="Buscar por colonia o título..." oninput="renderTable()" />
       <select id="filter-verdict" onchange="renderTable()">
         <option value="">Todos los veredictos</option>
@@ -240,9 +252,9 @@
     <p class="side-title">Distribución de precios</p>
     <div id="chart-wrap"><canvas id="priceChart"></canvas></div>
     <p class="legend-note">
-      Cada barra agrupa publicaciones guardadas por rango de precio. Sirve para ver rápido
-      dónde se concentra la oferta en {{ ciudad }} y qué tan común (o rara) es una casa
-      por su precio.
+      Cada barra agrupa publicaciones guardadas por rango de precio, según los filtros
+      de arriba (zona, búsqueda, veredicto). Sirve para ver rápido dónde se concentra
+      la oferta y qué tan común (o rara) es una casa por su precio.
     </p>
   </div>
 </div>
@@ -324,6 +336,16 @@ function verdictFilterKey(verdict) {
   return "";
 }
 
+function populateZoneFilter(searches) {
+  const sel = document.getElementById("filter-zone");
+  const current = sel.value;
+  const options = (searches || []).map(
+    (s) => `<option value="${s.key}">${s.label} (${s.count})</option>`
+  );
+  sel.innerHTML = '<option value="">Todas las zonas</option>' + options.join("");
+  sel.value = current || "";
+}
+
 async function loadAll() {
   const [listingsResp, statsResp] = await Promise.all([
     fetch("/api/listings", { cache: "no-store" }),
@@ -331,18 +353,38 @@ async function loadAll() {
   ]);
   allListings = await listingsResp.json();
   const stats = await statsResp.json();
-  renderCards(stats);
+  populateZoneFilter(stats.searches);
   renderMortgageNote(stats);
   renderTable();
-  renderChart();
   document.getElementById("last-update").textContent = stats.last_update
     ? "Última actualización: " + fmtDate(stats.last_update)
     : "Sin datos aún";
 }
 
+function computeLocalStats(rows) {
+  const priced = rows.filter((l) => l.price);
+  const prices = priced.map((l) => l.price);
+  const ppm2 = priced.filter((l) => l.lot_size).map((l) => l.price / l.lot_size);
+  const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+  const median = (arr) => {
+    if (!arr.length) return 0;
+    const s = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+  };
+  return {
+    total_listings: rows.length,
+    avg_price: prices.length ? sum(prices) / prices.length : 0,
+    median_price: median(prices),
+    min_price: prices.length ? Math.min(...prices) : 0,
+    max_price: prices.length ? Math.max(...prices) : 0,
+    avg_price_per_m2: ppm2.length ? sum(ppm2) / ppm2.length : 0,
+  };
+}
+
 function renderCards(stats) {
   const cards = [
-    { label: "Publicaciones guardadas", value: stats.total_listings ?? 0 },
+    { label: "Publicaciones (con este filtro)", value: stats.total_listings ?? 0 },
     { label: "Precio promedio", value: money(stats.avg_price) },
     { label: "Precio mediana", value: money(stats.median_price) },
     { label: "$/m² promedio", value: stats.avg_price_per_m2 ? money(stats.avg_price_per_m2) : "—" },
@@ -355,11 +397,13 @@ function renderCards(stats) {
 }
 
 function renderTable() {
+  const zoneFilter = document.getElementById("filter-zone").value;
   const search = document.getElementById("search").value.trim().toLowerCase();
   const verdictFilter = document.getElementById("filter-verdict").value;
   const sortBy = document.getElementById("sort-by").value;
 
   let rows = allListings.filter((l) => {
+    if (zoneFilter && l.search_key !== zoneFilter) return false;
     if (search) {
       const hay = (l.title || "").toLowerCase() + " " + (l.location || "").toLowerCase();
       if (!hay.includes(search)) return false;
@@ -367,6 +411,9 @@ function renderTable() {
     if (verdictFilter && verdictFilterKey(l.verdict) !== verdictFilter) return false;
     return true;
   });
+
+  renderCards(computeLocalStats(rows));
+  renderChart(rows);
 
   const sorters = {
     first_seen_desc: (a, b) => (b.first_seen || "").localeCompare(a.first_seen || ""),
@@ -399,6 +446,7 @@ function renderTable() {
           <td class="title-cell">
             <div class="t" title="${(l.title || "").replace(/"/g, '&quot;')}">${l.title || "(sin título)"}</div>
             <div class="loc">${l.location || ""}</div>
+            <span class="zone-tag">${l.search_label || ""}</span>
           </td>
           <td class="num">${money(l.price)}</td>
           <td class="num">${l.lot_size ? Math.round(l.lot_size) : "—"}</td>
@@ -414,9 +462,15 @@ function renderTable() {
     .join("");
 }
 
-function renderChart() {
-  const priced = allListings.filter((l) => l.price);
-  if (priced.length === 0) return;
+function renderChart(rows) {
+  const priced = rows.filter((l) => l.price);
+  if (priced.length === 0) {
+    if (chartInstance) {
+      chartInstance.destroy();
+      chartInstance = null;
+    }
+    return;
+  }
 
   const prices = priced.map((l) => l.price);
   const min = Math.min(...prices);

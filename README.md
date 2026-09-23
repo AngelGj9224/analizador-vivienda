@@ -1,12 +1,29 @@
-# Analizador de Vivienda — San Mateo Atenco
+# Analizador de Vivienda
 
-Busca casas en venta en San Mateo Atenco **cuando tú lo mandas llamar**,
-guarda lo que encuentra, y lo muestra en un panel local con el detalle de
-cada publicación, comparado contra el resto de la zona (precio, precio por
-m², etc.) y con el link directo a cada anuncio.
+Busca publicaciones en Inmuebles24 en varias zonas **cuando tú lo mandas
+llamar**, guarda lo que encuentra, y lo muestra en un panel con el
+detalle de cada publicación, comparado contra el resto de su misma zona
+(precio, precio por m², etc.) y con el link directo a cada anuncio.
 
 No corre en segundo plano ni manda notificaciones a ningún lado: es
 buscar → guardar → revisar en el panel, cuando tú quieras.
+
+## Zonas que revisa
+
+Configuradas en [`src/searches.py`](src/searches.py):
+
+- Casas en venta — San Mateo Atenco
+- Casas en venta — Metepec
+- Departamentos en venta — Benito Juárez, CDMX
+
+El panel trae un **filtro de zona** para ver cada una por separado (o
+todas juntas). Las estadísticas de precio ("vs. promedio", tarjetas
+resumen, gráfica) siempre se calculan **dentro de la zona filtrada** —
+nunca se mezcla el precio de un departamento en CDMX contra el de una
+casa en Metepec.
+
+Para agregar otra zona/búsqueda, edita `src/searches.py` — el comentario
+de ahí explica cómo confirmar que la URL existe antes de agregarla.
 
 ## Qué hace y qué no
 
@@ -15,15 +32,21 @@ buscar → guardar → revisar en el panel, cuando tú quieras.
   Intenté también con Vivanuncios, Lamudi y Trovit/Mitula, pero sus sistemas
   anti-bot (Cloudflare y similares) bloquearon el acceso automatizado. Si
   más adelante quieres que agregue alguno, dímelo.
-- Cada vez que corres la búsqueda, guarda las publicaciones que sean
-  nuevas (las que ya tenía las deja igual) en `data/listings.db`.
-- También revisa cuáles de las que ya tenías guardadas **ya no aparecen**
-  en el sitio (se vendieron, las quitaron, etc.) y las quita del panel —
-  no las borra de la base, solo deja de mostrarlas. Por seguridad, esto
-  **solo pasa si la búsqueda alcanzó a leer casi todas las páginas** que
-  el sitio reporta tener; si un bloqueo del sitio interrumpió la búsqueda
-  a la mitad, no se da de baja nada esa vez (para no borrar por error algo
-  que sigue en venta).
+- Cada vez que corres la búsqueda, revisa las 3 zonas de arriba y guarda
+  las publicaciones que sean nuevas (las que ya tenía las deja igual) en
+  `data/listings.db`.
+- También revisa, **zona por zona**, cuáles de las que ya tenías
+  guardadas **ya no aparecen** en el sitio (se vendieron, las quitaron,
+  etc.) y las quita del panel — no las borra de la base, solo deja de
+  mostrarlas. Por seguridad, esto **solo pasa si la búsqueda de esa zona
+  alcanzó a leer casi todas las páginas** que el sitio reporta tener. San
+  Mateo Atenco normalmente se cubre completa (~70-80 publicaciones);
+  Metepec (~385) y Benito Juárez (~3,500) son zonas mucho más grandes que
+  lo que se revisa en cada corrida (`MAX_PAGES`), así que ahí el programa
+  **nunca** las da de baja automáticamente por ahora — solo va agregando
+  las que encuentra. Si quieres cobertura más completa en esas zonas,
+  sube `MAX_PAGES` en `.env` (cada página extra tarda unos segundos más
+  por el anti-bot del sitio).
 - El panel muestra, para cada publicación, la fecha en que el programa la
   detectó por primera vez y hace cuántos días fue ("Publicada").
 - El panel solo lee esa base de datos — no se conecta a internet más que
@@ -159,6 +182,7 @@ src/
   publish.py              genera la versión estática para GitHub Pages (docs/)
   export_data.py          lógica compartida de datos (usada por dashboard y publish)
   mortgage.py              cálculo de mensualidad estimada (crédito Infonavit)
+  searches.py              lista de zonas/búsquedas que se revisan
   templates/
     dashboard.html         interfaz del panel local
     dashboard_static.html   interfaz de la versión publicada en GitHub Pages

@@ -24,9 +24,17 @@ CREATE TABLE IF NOT EXISTS listings (
     location TEXT,
     first_seen TEXT,
     last_seen TEXT,
-    active INTEGER DEFAULT 1
+    active INTEGER DEFAULT 1,
+    search_key TEXT,
+    search_label TEXT
 );
 """
+
+# Antes de que el programa buscara en varias zonas, todo lo guardado era
+# de esta búsqueda. Se usa solo para rellenar registros viejos que no
+# tenían search_key/search_label.
+_LEGACY_SEARCH_KEY = "casas-san-mateo-atenco"
+_LEGACY_SEARCH_LABEL = "Casas en venta — San Mateo Atenco"
 
 
 @dataclass
@@ -46,6 +54,8 @@ class ListingRecord:
     first_seen: str
     last_seen: str
     active: int = 1
+    search_key: str = _LEGACY_SEARCH_KEY
+    search_label: str = _LEGACY_SEARCH_LABEL
 
 
 class Storage:
@@ -60,6 +70,13 @@ class Storage:
         cols = {row["name"] for row in self.conn.execute("PRAGMA table_info(listings)")}
         if "active" not in cols:
             self.conn.execute("ALTER TABLE listings ADD COLUMN active INTEGER DEFAULT 1")
+        if "search_key" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN search_key TEXT")
+            self.conn.execute("ALTER TABLE listings ADD COLUMN search_label TEXT")
+            self.conn.execute(
+                "UPDATE listings SET search_key=?, search_label=? WHERE search_key IS NULL",
+                (_LEGACY_SEARCH_KEY, _LEGACY_SEARCH_LABEL),
+            )
         self.conn.commit()
 
     def upsert_listings(self, listings: List[Listing]) -> List[str]:
@@ -74,30 +91,36 @@ class Storage:
             exists = cur.fetchone()
             if exists:
                 cur.execute(
-                    "UPDATE listings SET last_seen=?, price=?, title=?, active=1 WHERE id=?",
-                    (now, l.price, l.title, l.id),
+                    """UPDATE listings
+                       SET last_seen=?, price=?, title=?, active=1, search_key=?, search_label=?
+                       WHERE id=?""",
+                    (now, l.price, l.title, l.search_key, l.search_label, l.id),
                 )
             else:
                 cur.execute(
                     """INSERT INTO listings
                         (id, source, title, url, price, currency, maintenance, lot_size,
-                         bedrooms, bathrooms, parking, location, first_seen, last_seen, active)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+                         bedrooms, bathrooms, parking, location, first_seen, last_seen, active,
+                         search_key, search_label)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)""",
                     (
                         l.id, l.source, l.title, l.url, l.price, l.currency, l.maintenance,
                         l.lot_size, l.bedrooms, l.bathrooms, l.parking, l.location, now, now,
+                        l.search_key, l.search_label,
                     ),
                 )
                 new_ids.append(l.id)
         self.conn.commit()
         return new_ids
 
-    def deactivate_missing(self, current_ids, source: str) -> int:
-        """Marca como inactivas (ya no disponibles) las publicaciones de
-        `source` que estaban activas pero no vinieron en `current_ids` (la
-        búsqueda más reciente). No las borra, solo deja de mostrarlas."""
+    def deactivate_missing(self, current_ids, source: str, search_key: str) -> int:
+        """Marca como inactivas (ya no disponibles) las publicaciones de esta
+        `source`+`search_key` que estaban activas pero no vinieron en
+        `current_ids` (la búsqueda más reciente de esa zona). No las borra,
+        solo deja de mostrarlas."""
         cur = self.conn.execute(
-            "SELECT id FROM listings WHERE source=? AND active=1", (source,)
+            "SELECT id FROM listings WHERE source=? AND search_key=? AND active=1",
+            (source, search_key),
         )
         previously_active = {row["id"] for row in cur.fetchall()}
         to_deactivate = previously_active - set(current_ids)
