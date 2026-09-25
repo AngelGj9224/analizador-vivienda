@@ -376,13 +376,16 @@ async function initApp(fetchData) {
   document.getElementById("tab-favorites").addEventListener("click", () => setView("favorites"));
 
   const refreshBtn = document.getElementById("refresh-btn");
-  if (refreshBtn) refreshBtn.addEventListener("click", () => loadAll(fetchData));
+  if (refreshBtn) refreshBtn.addEventListener("click", () => loadAll(fetchData, true));
 
-  await loadAll(fetchData);
+  await loadAll(fetchData, false);
 }
 
-async function loadAll(fetchData) {
+let _lastKnownUpdate = undefined;
+
+async function loadAll(fetchData, isManualClick) {
   const refreshBtn = document.getElementById("refresh-btn");
+  const originalBtnText = refreshBtn ? refreshBtn.textContent : "";
   if (refreshBtn) refreshBtn.disabled = true;
   showSkeleton(true);
 
@@ -394,6 +397,18 @@ async function loadAll(fetchData) {
         l.favorite = !!favMap[l.id];
       }
     });
+
+    // Confirmación visible de que el botón sí hizo algo, aunque los
+    // datos publicados sean los mismos de antes (es normal: esta página
+    // solo lee la última "foto" que se publicó desde la PC).
+    if (isManualClick && refreshBtn) {
+      const changed = _lastKnownUpdate !== undefined && stats.last_update !== _lastKnownUpdate;
+      refreshBtn.textContent = changed ? "✓ Hay novedades" : "✓ Ya tenías lo último";
+      setTimeout(() => {
+        refreshBtn.textContent = originalBtnText;
+      }, 2000);
+    }
+    _lastKnownUpdate = stats.last_update;
 
     populateZoneFilter(stats.searches);
     renderMortgageNote(stats);
